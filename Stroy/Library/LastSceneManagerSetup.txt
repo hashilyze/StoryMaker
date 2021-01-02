@@ -1,5 +1,5 @@
 sceneSetups:
-- path: Assets/EntityController/Samples/DynamicBlockTestRoom.unity
+- path: Assets/EntityController/Samples/TopView.unity
   isLoaded: 1
   isActive: 1
   isSubScene: 0

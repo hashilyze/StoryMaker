@@ -2,55 +2,6 @@
     "name": "MyInputAction",
     "maps": [
         {
-            "name": "Player",
-            "id": "eae3628e-8cca-4e31-a438-088ff851c44a",
-            "actions": [
-                {
-                    "name": "Move",
-                    "type": "Button",
-                    "id": "35fd47b1-d358-4428-8d2e-9ed2074f3ca9",
-                    "expectedControlType": "Button",
-                    "processors": "",
-                    "interactions": "Hold"
-                }
-            ],
-            "bindings": [
-                {
-                    "name": "1D Axis",
-                    "id": "ee55b919-0610-4f0c-8074-bedd588c5319",
-                    "path": "1DAxis",
-                    "interactions": "",
-                    "processors": "",
-                    "groups": "",
-                    "action": "Move",
-                    "isComposite": true,
-                    "isPartOfComposite": false
-                },
-                {
-                    "name": "negative",
-                    "id": "c6820486-9cae-4965-be03-3fda6fc4908f",
-                    "path": "<Keyboard>/a",
-                    "interactions": "",
-                    "processors": "",
-                    "groups": "Keyboard",
-                    "action": "Move",
-                    "isComposite": false,
-                    "isPartOfComposite": true
-                },
-                {
-                    "name": "positive",
-                    "id": "69dbe076-4b6e-4d01-b7af-794e06d75afd",
-                    "path": "<Keyboard>/d",
-                    "interactions": "",
-                    "processors": "",
-                    "groups": "Keyboard",
-                    "action": "Move",
-                    "isComposite": false,
-                    "isPartOfComposite": true
-                }
-            ]
-        },
-        {
             "name": "TopView",
             "id": "6327a4d4-2fa0-4b7a-b714-6d6b2b2ea35a",
             "actions": [
@@ -58,15 +9,15 @@
                     "name": "Move",
                     "type": "Value",
                     "id": "5285b698-0c7a-4319-b365-3818cba09983",
-                    "expectedControlType": "Vector2",
+                    "expectedControlType": "",
                     "processors": "",
                     "interactions": ""
                 }
             ],
             "bindings": [
                 {
-                    "name": "2D Vector",
-                    "id": "f0b8ec4a-6f80-4419-b7b2-a407e57e1167",
+                    "name": "WASD",
+                    "id": "64954056-db48-4222-9e9f-80dc2727f2d0",
                     "path": "2DVector",
                     "interactions": "",
                     "processors": "",
@@ -77,44 +28,44 @@
                 },
                 {
                     "name": "up",
-                    "id": "04af9acd-23c0-486d-af67-97c390e30740",
-                    "path": "",
+                    "id": "0c37a130-7f27-4282-a0a8-5ca0a0e8b914",
+                    "path": "<Keyboard>/w",
                     "interactions": "",
                     "processors": "",
-                    "groups": "",
+                    "groups": "KeyboardMouse",
                     "action": "Move",
                     "isComposite": false,
                     "isPartOfComposite": true
                 },
                 {
                     "name": "down",
-                    "id": "adb2e685-dd2c-41d4-a2e2-42fec7f6cb2c",
-                    "path": "",
+                    "id": "23b319a8-389c-47a4-8eba-8e5fc8f79816",
+                    "path": "<Keyboard>/s",
                     "interactions": "",
                     "processors": "",
-                    "groups": "",
+                    "groups": "KeyboardMouse",
                     "action": "Move",
                     "isComposite": false,
                     "isPartOfComposite": true
                 },
                 {
                     "name": "left",
-                    "id": "fa4c0cef-73de-4f5e-9e98-7f1878845e2d",
-                    "path": "",
+                    "id": "1b577cd9-50e0-445f-ba1a-d946f472ca40",
+                    "path": "<Keyboard>/a",
                     "interactions": "",
                     "processors": "",
-                    "groups": "",
+                    "groups": "KeyboardMouse",
                     "action": "Move",
                     "isComposite": false,
                     "isPartOfComposite": true
                 },
                 {
                     "name": "right",
-                    "id": "e76268b2-749f-43be-9d0f-cb9565eca886",
-                    "path": "",
+                    "id": "7fe20fe1-946c-43d3-8e13-6ae7b0df8693",
+                    "path": "<Keyboard>/d",
                     "interactions": "",
                     "processors": "",
-                    "groups": "",
+                    "groups": "KeyboardMouse",
                     "action": "Move",
                     "isComposite": false,
                     "isPartOfComposite": true
@@ -151,11 +102,16 @@
     ],
     "controlSchemes": [
         {
-            "name": "Keyboard",
-            "bindingGroup": "Keyboard",
+            "name": "KeyboardMouse",
+            "bindingGroup": "KeyboardMouse",
             "devices": [
                 {
                     "devicePath": "<Keyboard>",
+                    "isOptional": false,
+                    "isOR": false
+                },
+                {
+                    "devicePath": "<Mouse>",
                     "isOptional": false,
                     "isOR": false
                 }
