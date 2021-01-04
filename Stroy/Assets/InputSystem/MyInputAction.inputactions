@@ -77,9 +77,17 @@
             "id": "996f154e-8ec9-493b-ad0e-8cd99f4e9d56",
             "actions": [
                 {
-                    "name": "New action",
-                    "type": "Button",
+                    "name": "Move",
+                    "type": "Value",
                     "id": "0fecd4f5-035f-4f00-9f5f-15b5d9e12479",
+                    "expectedControlType": "Axis",
+                    "processors": "",
+                    "interactions": ""
+                },
+                {
+                    "name": "Jump",
+                    "type": "Button",
+                    "id": "35aea2f3-1abf-4878-a33e-a6304aaa20a3",
                     "expectedControlType": "Button",
                     "processors": "",
                     "interactions": ""
@@ -87,13 +95,46 @@
             ],
             "bindings": [
                 {
-                    "name": "",
-                    "id": "a184d240-9d77-48ee-9336-3c76e79fb8d9",
-                    "path": "",
+                    "name": "1D Axis",
+                    "id": "eee8c0d4-fcf3-4360-b67e-2e1d6c81885f",
+                    "path": "1DAxis",
                     "interactions": "",
                     "processors": "",
                     "groups": "",
-                    "action": "New action",
+                    "action": "Move",
+                    "isComposite": true,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "negative",
+                    "id": "f98da49b-e7f2-41db-8ccb-ee941d0db60c",
+                    "path": "<Keyboard>/a",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "KeyboardMouse",
+                    "action": "Move",
+                    "isComposite": false,
+                    "isPartOfComposite": true
+                },
+                {
+                    "name": "positive",
+                    "id": "092718cb-745a-4957-8ac5-c0bc986b7ea0",
+                    "path": "<Keyboard>/d",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "KeyboardMouse",
+                    "action": "Move",
+                    "isComposite": false,
+                    "isPartOfComposite": true
+                },
+                {
+                    "name": "",
+                    "id": "73044721-dac5-4a18-ad70-7b062f8e0886",
+                    "path": "<Keyboard>/j",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "KeyboardMouse",
+                    "action": "Jump",
                     "isComposite": false,
                     "isPartOfComposite": false
                 }

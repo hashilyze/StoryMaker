@@ -90,9 +90,17 @@ public class @MyInputAction : IInputActionCollection, IDisposable
             ""id"": ""996f154e-8ec9-493b-ad0e-8cd99f4e9d56"",
             ""actions"": [
                 {
-                    ""name"": ""New action"",
-                    ""type"": ""Button"",
+                    ""name"": ""Move"",
+                    ""type"": ""Value"",
                     ""id"": ""0fecd4f5-035f-4f00-9f5f-15b5d9e12479"",
+                    ""expectedControlType"": ""Axis"",
+                    ""processors"": """",
+                    ""interactions"": """"
+                },
+                {
+                    ""name"": ""Jump"",
+                    ""type"": ""Button"",
+                    ""id"": ""35aea2f3-1abf-4878-a33e-a6304aaa20a3"",
                     ""expectedControlType"": ""Button"",
                     ""processors"": """",
                     ""interactions"": """"
@@ -100,13 +108,46 @@ public class @MyInputAction : IInputActionCollection, IDisposable
             ],
             ""bindings"": [
                 {
-                    ""name"": """",
-                    ""id"": ""a184d240-9d77-48ee-9336-3c76e79fb8d9"",
-                    ""path"": """",
+                    ""name"": ""1D Axis"",
+                    ""id"": ""eee8c0d4-fcf3-4360-b67e-2e1d6c81885f"",
+                    ""path"": ""1DAxis"",
                     ""interactions"": """",
                     ""processors"": """",
                     ""groups"": """",
-                    ""action"": ""New action"",
+                    ""action"": ""Move"",
+                    ""isComposite"": true,
+                    ""isPartOfComposite"": false
+                },
+                {
+                    ""name"": ""negative"",
+                    ""id"": ""f98da49b-e7f2-41db-8ccb-ee941d0db60c"",
+                    ""path"": ""<Keyboard>/a"",
+                    ""interactions"": """",
+                    ""processors"": """",
+                    ""groups"": ""KeyboardMouse"",
+                    ""action"": ""Move"",
+                    ""isComposite"": false,
+                    ""isPartOfComposite"": true
+                },
+                {
+                    ""name"": ""positive"",
+                    ""id"": ""092718cb-745a-4957-8ac5-c0bc986b7ea0"",
+                    ""path"": ""<Keyboard>/d"",
+                    ""interactions"": """",
+                    ""processors"": """",
+                    ""groups"": ""KeyboardMouse"",
+                    ""action"": ""Move"",
+                    ""isComposite"": false,
+                    ""isPartOfComposite"": true
+                },
+                {
+                    ""name"": """",
+                    ""id"": ""73044721-dac5-4a18-ad70-7b062f8e0886"",
+                    ""path"": ""<Keyboard>/j"",
+                    ""interactions"": """",
+                    ""processors"": """",
+                    ""groups"": ""KeyboardMouse"",
+                    ""action"": ""Jump"",
                     ""isComposite"": false,
                     ""isPartOfComposite"": false
                 }
@@ -137,7 +178,8 @@ public class @MyInputAction : IInputActionCollection, IDisposable
         m_TopView_Move = m_TopView.FindAction("Move", throwIfNotFound: true);
         // SideView
         m_SideView = asset.FindActionMap("SideView", throwIfNotFound: true);
-        m_SideView_Newaction = m_SideView.FindAction("New action", throwIfNotFound: true);
+        m_SideView_Move = m_SideView.FindAction("Move", throwIfNotFound: true);
+        m_SideView_Jump = m_SideView.FindAction("Jump", throwIfNotFound: true);
     }
 
     public void Dispose()
@@ -220,12 +262,14 @@ public class @MyInputAction : IInputActionCollection, IDisposable
     // SideView
     private readonly InputActionMap m_SideView;
     private ISideViewActions m_SideViewActionsCallbackInterface;
-    private readonly InputAction m_SideView_Newaction;
+    private readonly InputAction m_SideView_Move;
+    private readonly InputAction m_SideView_Jump;
     public struct SideViewActions
     {
         private @MyInputAction m_Wrapper;
         public SideViewActions(@MyInputAction wrapper) { m_Wrapper = wrapper; }
-        public InputAction @Newaction => m_Wrapper.m_SideView_Newaction;
+        public InputAction @Move => m_Wrapper.m_SideView_Move;
+        public InputAction @Jump => m_Wrapper.m_SideView_Jump;
         public InputActionMap Get() { return m_Wrapper.m_SideView; }
         public void Enable() { Get().Enable(); }
         public void Disable() { Get().Disable(); }
@@ -235,16 +279,22 @@ public class @MyInputAction : IInputActionCollection, IDisposable
         {
             if (m_Wrapper.m_SideViewActionsCallbackInterface != null)
             {
-                @Newaction.started -= m_Wrapper.m_SideViewActionsCallbackInterface.OnNewaction;
-                @Newaction.performed -= m_Wrapper.m_SideViewActionsCallbackInterface.OnNewaction;
-                @Newaction.canceled -= m_Wrapper.m_SideViewActionsCallbackInterface.OnNewaction;
+                @Move.started -= m_Wrapper.m_SideViewActionsCallbackInterface.OnMove;
+                @Move.performed -= m_Wrapper.m_SideViewActionsCallbackInterface.OnMove;
+                @Move.canceled -= m_Wrapper.m_SideViewActionsCallbackInterface.OnMove;
+                @Jump.started -= m_Wrapper.m_SideViewActionsCallbackInterface.OnJump;
+                @Jump.performed -= m_Wrapper.m_SideViewActionsCallbackInterface.OnJump;
+                @Jump.canceled -= m_Wrapper.m_SideViewActionsCallbackInterface.OnJump;
             }
             m_Wrapper.m_SideViewActionsCallbackInterface = instance;
             if (instance != null)
             {
-                @Newaction.started += instance.OnNewaction;
-                @Newaction.performed += instance.OnNewaction;
-                @Newaction.canceled += instance.OnNewaction;
+                @Move.started += instance.OnMove;
+                @Move.performed += instance.OnMove;
+                @Move.canceled += instance.OnMove;
+                @Jump.started += instance.OnJump;
+                @Jump.performed += instance.OnJump;
+                @Jump.canceled += instance.OnJump;
             }
         }
     }
@@ -264,6 +314,7 @@ public class @MyInputAction : IInputActionCollection, IDisposable
     }
     public interface ISideViewActions
     {
-        void OnNewaction(InputAction.CallbackContext context);
+        void OnMove(InputAction.CallbackContext context);
+        void OnJump(InputAction.CallbackContext context);
     }
 }

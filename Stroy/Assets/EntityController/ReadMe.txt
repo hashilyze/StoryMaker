@@ -18,4 +18,3 @@ If you want other actions, can implement by using these.
 
 # Component
 EntityController: Base action and interaction
-EntityManager: 
