@@ -1,5 +1,5 @@
 sceneSetups:
-- path: Assets/EntityController/Side-Samples/SideView.unity
+- path: Assets/EntityController/Samples/ExtraRoom.unity
   isLoaded: 1
   isActive: 1
   isSubScene: 0
