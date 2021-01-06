@@ -4,32 +4,41 @@ namespace Stroy {
 
     namespace EC {
         [RequireComponent(typeof(BoxCollider2D), typeof(Rigidbody2D))]
-        public class EntityController : MonoBehaviour {
+        public sealed class EntityController : MonoBehaviour {
             public Rigidbody2D Rigidbody => m_rigidbody;
             public BoxCollider2D Body => m_body;
 
             public Vector2 Size => m_size;
             public Vector2 Velocity => m_velocity;
+            public Rigidbody2D FollowBlock => m_followBlock;
+            public System.Func<Rigidbody2D, Vector2> FollowDistanceGenerator => m_getFollowDistance;
 
 
             // Command
             public void SetVelocity(in Vector2 velocity) {
                 m_velocity = velocity;
             }
-            public void SetPosition(in Vector2 position, bool safe = false) {
+            public void SetPosition(in Vector2 position, bool unsafeMode = true) {
                 m_rigidbody.MovePosition(position);
                 m_executedSetPos = true;
-                if (safe == false) {
+                if (unsafeMode) {
                     m_executedUnsafe = true;
                 }
             }
-            public void SetSize(in Vector2 size, bool safe = false) {
+            public void SetSize(in Vector2 size, bool unsafeMode = true) {
                 m_body.size = size;
                 m_size = size;
 
-                if (safe == false) {
+                if (unsafeMode) {
                     m_executedUnsafe = true;
                 }
+            }
+            public void SetFollowBlock(Rigidbody2D followBlock) {
+                m_followBlock = followBlock;
+                m_existFollow = followBlock != null;
+            }
+            public void SetFollowDistanceGenerator(System.Func<Rigidbody2D, Vector2> followDistanceGenerator) {
+                m_getFollowDistance = followDistanceGenerator;
             }
             //==========================================================================================
 
@@ -42,23 +51,25 @@ namespace Stroy {
             [HideInInspector] private Rigidbody2D m_rigidbody;
             [HideInInspector] private BoxCollider2D m_body;
             // State
-            protected Vector2 m_velocity;                           // Current velocity
-            private Vector2 m_size;                                 // Size of body
-            private int m_dynamicNum;                               // The number of dynamic blocks which entity touch or overlap
-            [HideInInspector] private bool m_executedUnsafe;        // Whether has been executed unsafe command between current and previous steps
-            [HideInInspector] private bool m_executedSetPos;        // Whether has been executed SetPosition between current and previous steps
-
-
-
+            private Vector2 m_velocity;
+            private Vector2 m_size;
+            private int m_dynamicNum;                                       // The number of dynamic blocks which entity touch or overlap
+            [HideInInspector] private bool m_executedUnsafe;                // Whether has been executed unsafe command between current and previous steps
+            [HideInInspector] private bool m_executedSetPos;                // Whether has been executed SetPosition between current and previous steps
+            
+            private Rigidbody2D m_followBlock;
+            private System.Func<Rigidbody2D, Vector2> m_getFollowDistance;
+            private bool m_existFollow;
+            
             private void OnEnable() {
                 m_executedUnsafe = true;
             }
-            protected virtual void OnDisable() {
+            private void OnDisable() {
                 m_velocity = Vector2.zero;
                 m_executedUnsafe = false;
                 m_executedSetPos = false;
             }
-
+            
             private void Awake() {
                 // Setup body
                 m_body = GetComponent<BoxCollider2D>();
@@ -69,8 +80,13 @@ namespace Stroy {
                 m_rigidbody.useFullKinematicContacts = true;
                 m_rigidbody.constraints = RigidbodyConstraints2D.FreezeRotation;
             }
-            protected virtual void FixedUpdate() {
-                if (GetSkipFlag()) return;
+
+            private void FixedUpdate() {
+                // Don't apply velocity to movement when teleport
+                if (m_executedSetPos) {
+                    m_executedSetPos = false;
+                    return;
+                }
 
                 // Initialize properties
                 Vector2 origin = m_rigidbody.position;
@@ -79,33 +95,42 @@ namespace Stroy {
                 if (ReactBlock(in origin, out Vector2 pushDistance, out Vector2 penetration)) {
                     destination += penetration;
                     ApplyVelocity(ref destination);
-                    destination += pushDistance;
+
+                    if(m_existFollow) {
+                        Vector2 followDistance = m_getFollowDistance != null ? m_getFollowDistance(m_followBlock) : m_followBlock.velocity * Time.fixedDeltaTime;
+                        destination.x += pushDistance.x * followDistance.x < 0f ? pushDistance.x : pushDistance.x + followDistance.x;
+                        destination.y += pushDistance.y * followDistance.y < 0f ? pushDistance.y : pushDistance.y + followDistance.y;
+                    } else {
+                        destination += pushDistance;
+                    }
                 } else {
                     ApplyVelocity(ref destination);
+                    if (m_existFollow) {
+                        destination += m_getFollowDistance != null ? m_getFollowDistance(m_followBlock) : m_followBlock.velocity * Time.fixedDeltaTime;
+                    }
                 }
+
                 // Apply destination
                 m_rigidbody.MovePosition(destination);
             }
 
             private void OnCollisionEnter2D(Collision2D collision) {
-                int layer = collision.gameObject.layer;
-                if (layer == ECConstants.DynamicBlock) {
+                if (collision.gameObject.layer == ECConstants.DynamicBlock) {
                     ++m_dynamicNum;
                 }
             }
             private void OnCollisionExit2D(Collision2D collision) {
-                int layer = collision.gameObject.layer;
-                if (layer == ECConstants.DynamicBlock) {
+                if (collision.gameObject.layer == ECConstants.DynamicBlock) {
                     --m_dynamicNum;
                 }
             }
 
             /// <summary>Compute reaction value to blocks</summary>
-            protected bool ReactBlock(in Vector2 origin, out Vector2 pushDistance, out Vector2 penetration) {
+            private bool ReactBlock(in Vector2 origin, out Vector2 pushDistance, out Vector2 penetration) {
                 pushDistance = penetration = Vector2.zero;
 
                 // Fast check
-                if (m_dynamicNum == 0 && m_executedUnsafe == false) return false;
+                if (m_dynamicNum == 0 && !m_executedUnsafe) return false;
                 m_executedUnsafe = false;
 
                 // Query blocks required reaction
@@ -130,8 +155,12 @@ namespace Stroy {
                         Vector2 newPushVelocity = detectedCollider.attachedRigidbody.velocity;
                         if (Vector2.Dot(newPushVelocity, newPenetration) > 0f) { // Query only forward objects
                             // Update push-velocity
-                            if (coliiderDist.normal.x != 0f && Mathf.Abs(maxPushVelocity.x) < Mathf.Abs(newPushVelocity.x)) maxPushVelocity.x = newPushVelocity.x;
-                            if (coliiderDist.normal.y != 0f && Mathf.Abs(maxPushVelocity.y) < Mathf.Abs(newPushVelocity.y)) maxPushVelocity.y = newPushVelocity.y;
+                            if (coliiderDist.normal.x != 0f && Mathf.Abs(maxPushVelocity.x) < Mathf.Abs(newPushVelocity.x)) {
+                                maxPushVelocity.x = newPushVelocity.x;
+                            }
+                            if (coliiderDist.normal.y != 0f && Mathf.Abs(maxPushVelocity.y) < Mathf.Abs(newPushVelocity.y)) {
+                                maxPushVelocity.y = newPushVelocity.y;
+                            }
                         }
                     }
 
@@ -153,7 +182,7 @@ namespace Stroy {
                 return true;
             }
             /// <summary>Apply velocity to lastest destination and update velocity</summary>
-            protected void ApplyVelocity(ref Vector2 destination) {
+            private void ApplyVelocity(ref Vector2 destination) {
                 if (m_velocity == Vector2.zero) return;
 
                 Vector2 befPos = destination;
@@ -169,7 +198,7 @@ namespace Stroy {
                 m_velocity = (destination - befPos) / Time.fixedDeltaTime;
             }
             /// <summary>Add distance to lastest destination</summary>
-            protected void AddDistance(ref Vector2 destination, float distance, in Vector2 axis) {
+            private void AddDistance(ref Vector2 destination, float distance, in Vector2 axis) {
                 float clampedDist = (distance < 0 ? -distance : distance) + ECConstants.MinContactOffset;
                 float sign = distance < 0 ? -1f : 1f;
 
@@ -196,14 +225,6 @@ namespace Stroy {
                 (axis.x != 0f ? ref destination.x : ref destination.y) += (clampedDist - ECConstants.MinContactOffset) * sign;
             }
 
-            protected bool GetSkipFlag() {
-                // Don't apply velocity to movement when teleport
-                if (m_executedSetPos) {
-                    m_executedSetPos = false;
-                    return true;
-                }
-                return false;
-            }
 
             #region DEBUG
 #if DEBUG_MODE

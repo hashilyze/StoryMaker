@@ -22,9 +22,11 @@
 
 
             ///<summary>Default gravity scale</summary>
-            public static float Gravity = 10f;
+            public const float Gravity = 10f;
             ///<summary>Max degree of climbable slope</summary>
-            public static float SlopeLimit = 50f;
+            public const float SlopeLimit = 50f;
+            /// <summary>Max fall speed</summary>
+            public const float FallLimit = -12f;
 
         }
     }
