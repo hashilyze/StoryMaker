@@ -26,6 +26,9 @@ namespace Stroy {
                 }
             }
             public void SetSize(in Vector2 size, bool unsafeMode = true) {
+                // Unchanged
+                if (m_size == size) return;
+
                 m_body.size = size;
                 m_size = size;
 
@@ -59,8 +62,12 @@ namespace Stroy {
             
             private Rigidbody2D m_followBlock;
             private System.Func<Rigidbody2D, Vector2> m_getFollowDistance;
-            private bool m_existFollow;
-            
+            [HideInInspector] private bool m_existFollow;                   // Flag of exist follow block to optimize check
+            private bool m_pushedByFollowX;                                 // Whether pushed by follow block to axis-X
+            private bool m_pushedByFollowY;                                 // Whether pushed by follow block to axis-Y
+
+
+
             private void OnEnable() {
                 m_executedUnsafe = true;
             }
@@ -73,7 +80,7 @@ namespace Stroy {
             private void Awake() {
                 // Setup body
                 m_body = GetComponent<BoxCollider2D>();
-                SetSize(m_body.size, true);
+                SetSize(m_body.size);
                 // Setup rigidbody
                 m_rigidbody = GetComponent<Rigidbody2D>();
                 m_rigidbody.isKinematic = true;
@@ -82,7 +89,7 @@ namespace Stroy {
             }
 
             private void FixedUpdate() {
-                // Don't apply velocity to movement when teleport
+                // Don't apply velocity when SetPosition
                 if (m_executedSetPos) {
                     m_executedSetPos = false;
                     return;
@@ -91,22 +98,24 @@ namespace Stroy {
                 // Initialize properties
                 Vector2 origin = m_rigidbody.position;
                 Vector2 destination = origin;
+
                 // Compute destination
                 if (ReactBlock(in origin, out Vector2 pushDistance, out Vector2 penetration)) {
                     destination += penetration;
                     ApplyVelocity(ref destination);
+                    if (m_existFollow) {
+                        Vector2 followDistance = m_getFollowDistance(m_followBlock);
 
-                    if(m_existFollow) {
-                        Vector2 followDistance = m_getFollowDistance != null ? m_getFollowDistance(m_followBlock) : m_followBlock.velocity * Time.fixedDeltaTime;
-                        destination.x += pushDistance.x * followDistance.x < 0f ? pushDistance.x : pushDistance.x + followDistance.x;
-                        destination.y += pushDistance.y * followDistance.y < 0f ? pushDistance.y : pushDistance.y + followDistance.y;
-                    } else {
-                        destination += pushDistance;
+                        destination.x += m_pushedByFollowX || pushDistance.x * followDistance.x < 0f ? pushDistance.x : pushDistance.x + followDistance.x;
+                        destination.y += m_pushedByFollowY || pushDistance.y * followDistance.y < 0f ? pushDistance.y : pushDistance.y + followDistance.y;
                     }
                 } else {
                     ApplyVelocity(ref destination);
                     if (m_existFollow) {
-                        destination += m_getFollowDistance != null ? m_getFollowDistance(m_followBlock) : m_followBlock.velocity * Time.fixedDeltaTime;
+                        Vector2 followDistance = m_getFollowDistance(m_followBlock);
+
+                        if (!m_pushedByFollowX) destination.x += followDistance.x;
+                        if (!m_pushedByFollowY) destination.y += followDistance.y;
                     }
                 }
 
@@ -128,6 +137,7 @@ namespace Stroy {
             /// <summary>Compute reaction value to blocks</summary>
             private bool ReactBlock(in Vector2 origin, out Vector2 pushDistance, out Vector2 penetration) {
                 pushDistance = penetration = Vector2.zero;
+                m_pushedByFollowX = m_pushedByFollowY = false;
 
                 // Fast check
                 if (m_dynamicNum == 0 && !m_executedUnsafe) return false;
@@ -135,7 +145,7 @@ namespace Stroy {
 
                 // Query blocks required reaction
                 int numBlock = Physics2D.OverlapBoxNonAlloc(origin, m_size, 0f, m_bufferCollider, ECConstants.BlockMask);
-
+                
                 // No blocks, No react
                 if (numBlock == 0) return false;
 
@@ -145,27 +155,29 @@ namespace Stroy {
 
                 for (int n = 0; n != numBlock; ++n) {
                     Collider2D detectedCollider = m_bufferCollider[n];
-                    ColliderDistance2D coliiderDist = m_body.Distance(detectedCollider);
+                    ColliderDistance2D colliderDist = m_body.Distance(detectedCollider);
 
-                    Vector2 newPenetration = coliiderDist.distance * coliiderDist.normal;
-
+                    Vector2 newPenetration = colliderDist.distance * colliderDist.normal;
+                    
                     // [Dynamic]
                     // Query push-distance which is penetration at next step only with dynamic-block
                     if (detectedCollider.gameObject.layer == ECConstants.DynamicBlock) {
                         Vector2 newPushVelocity = detectedCollider.attachedRigidbody.velocity;
                         if (Vector2.Dot(newPushVelocity, newPenetration) > 0f) { // Query only forward objects
                             // Update push-velocity
-                            if (coliiderDist.normal.x != 0f && Mathf.Abs(maxPushVelocity.x) < Mathf.Abs(newPushVelocity.x)) {
+                            if (colliderDist.normal.x != 0f && Mathf.Abs(maxPushVelocity.x) < Mathf.Abs(newPushVelocity.x)) {
+                                m_pushedByFollowX = m_existFollow && detectedCollider.attachedRigidbody == m_followBlock;
                                 maxPushVelocity.x = newPushVelocity.x;
                             }
-                            if (coliiderDist.normal.y != 0f && Mathf.Abs(maxPushVelocity.y) < Mathf.Abs(newPushVelocity.y)) {
+                            if (colliderDist.normal.y != 0f && Mathf.Abs(maxPushVelocity.y) < Mathf.Abs(newPushVelocity.y)) {
+                                m_pushedByFollowY = m_existFollow && detectedCollider.attachedRigidbody == m_followBlock;
                                 maxPushVelocity.y = newPushVelocity.y;
                             }
                         }
                     }
 
                     // No require to update peneration unless overlapped
-                    if (coliiderDist.distance > -ECConstants.MinContactOffset) continue;
+                    if (colliderDist.distance > -ECConstants.MinContactOffset) continue;
                     // If penerations are contrasted, freezing character (Can't recovery)
                     if (maxPenetration.x * newPenetration.x < 0 || maxPenetration.y * newPenetration.y < 0f) return false;
 

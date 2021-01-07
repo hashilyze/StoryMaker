@@ -1,9 +1,6 @@
 ﻿namespace Stroy {
 
     namespace EC {
-        /// <summary>
-        /// Configurations for EC package
-        /// </summary>
         public static class ECConstants {
             /// <summary>Min offset for EC to interact with others</summary>
             public const float MinContactOffset = 0.01f;
