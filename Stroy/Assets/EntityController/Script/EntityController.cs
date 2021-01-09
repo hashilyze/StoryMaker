@@ -22,7 +22,7 @@ namespace Stroy {
                 m_rigidbody.MovePosition(position);
                 m_executedSetPos = true;
                 if (unsafeMode) {
-                    m_executedUnsafe = true;
+                    m_undangerous = false;
                 }
             }
             public void SetSize(in Vector2 size, bool unsafeMode = true) {
@@ -31,9 +31,8 @@ namespace Stroy {
 
                 m_body.size = size;
                 m_size = size;
-
                 if (unsafeMode) {
-                    m_executedUnsafe = true;
+                    m_undangerous = false;
                 }
             }
             public void SetFollowBlock(Rigidbody2D followBlock) {
@@ -57,8 +56,8 @@ namespace Stroy {
             private Vector2 m_velocity;
             private Vector2 m_size;
             private int m_dynamicNum;                                       // The number of dynamic blocks which entity touch or overlap
-            [HideInInspector] private bool m_executedUnsafe;                // Whether has been executed unsafe command between current and previous steps
-            [HideInInspector] private bool m_executedSetPos;                // Whether has been executed SetPosition between current and previous steps
+            [HideInInspector] private bool m_undangerous;                   // State flag; if flag down, EC always strictly monitor interaction
+            [HideInInspector] private bool m_executedSetPos;                // State flag; if flag up, current step execute SetPosition, otherwise apply velocity
             
             private Rigidbody2D m_followBlock;
             private System.Func<Rigidbody2D, Vector2> m_getFollowDistance;
@@ -69,11 +68,11 @@ namespace Stroy {
 
 
             private void OnEnable() {
-                m_executedUnsafe = true;
+                m_undangerous = false;
             }
             private void OnDisable() {
                 m_velocity = Vector2.zero;
-                m_executedUnsafe = false;
+                m_undangerous = true;
                 m_executedSetPos = false;
             }
             
@@ -89,7 +88,7 @@ namespace Stroy {
             }
 
             private void FixedUpdate() {
-                // Don't apply velocity when SetPosition
+                // Execute SetPosition, instead of velocity
                 if (m_executedSetPos) {
                     m_executedSetPos = false;
                     return;
@@ -98,27 +97,25 @@ namespace Stroy {
                 // Initialize properties
                 Vector2 origin = m_rigidbody.position;
                 Vector2 destination = origin;
-
                 // Compute destination
-                if (ReactBlock(in origin, out Vector2 pushDistance, out Vector2 penetration)) {
+                if (ReactBlock(in origin, out Vector2 pushDistance, out Vector2 penetration)) { // Pushed
                     destination += penetration;
                     ApplyVelocity(ref destination);
+
                     if (m_existFollow) {
                         Vector2 followDistance = m_getFollowDistance(m_followBlock);
 
                         destination.x += m_pushedByFollowX || pushDistance.x * followDistance.x < 0f ? pushDistance.x : pushDistance.x + followDistance.x;
                         destination.y += m_pushedByFollowY || pushDistance.y * followDistance.y < 0f ? pushDistance.y : pushDistance.y + followDistance.y;
+                    } else {
+                        destination += pushDistance;
                     }
-                } else {
+                } else { // No pushed
                     ApplyVelocity(ref destination);
                     if (m_existFollow) {
-                        Vector2 followDistance = m_getFollowDistance(m_followBlock);
-
-                        if (!m_pushedByFollowX) destination.x += followDistance.x;
-                        if (!m_pushedByFollowY) destination.y += followDistance.y;
+                        destination += m_getFollowDistance(m_followBlock);
                     }
                 }
-
                 // Apply destination
                 m_rigidbody.MovePosition(destination);
             }
@@ -140,8 +137,8 @@ namespace Stroy {
                 m_pushedByFollowX = m_pushedByFollowY = false;
 
                 // Fast check
-                if (m_dynamicNum == 0 && !m_executedUnsafe) return false;
-                m_executedUnsafe = false;
+                if (m_dynamicNum == 0 && m_undangerous) return false;
+                m_undangerous = true;
 
                 // Query blocks required reaction
                 int numBlock = Physics2D.OverlapBoxNonAlloc(origin, m_size, 0f, m_bufferCollider, ECConstants.BlockMask);
@@ -156,7 +153,7 @@ namespace Stroy {
                 for (int n = 0; n != numBlock; ++n) {
                     Collider2D detectedCollider = m_bufferCollider[n];
                     ColliderDistance2D colliderDist = m_body.Distance(detectedCollider);
-
+                    
                     Vector2 newPenetration = colliderDist.distance * colliderDist.normal;
                     
                     // [Dynamic]
@@ -176,18 +173,20 @@ namespace Stroy {
                         }
                     }
 
-                    // No require to update peneration unless overlapped
+                    // If gap between EC and query-target is greater than min-contact-offset, don't react
                     if (colliderDist.distance > -ECConstants.MinContactOffset) continue;
-                    // If penerations are contrasted, freezing character (Can't recovery)
-                    if (maxPenetration.x * newPenetration.x < 0 || maxPenetration.y * newPenetration.y < 0f) return false;
+                    // If penetrations are contrasted then freeze EC
+                    if (maxPenetration.x * newPenetration.x < 0 || maxPenetration.y * newPenetration.y < 0f) {
+                        return false;
+                    }
 
                     // Update penetration
                     if (Mathf.Abs(maxPenetration.x) < Mathf.Abs(newPenetration.x)) maxPenetration.x = newPenetration.x;
                     if (Mathf.Abs(maxPenetration.y) < Mathf.Abs(newPenetration.y)) maxPenetration.y = newPenetration.y;
                 }
-                // Interpolate contact-offset
-                if (maxPenetration.x != 0f) maxPenetration.x -= Mathf.Sign(maxPenetration.x) * (ECConstants.MinContactOffset - 0.005f);
-                if (maxPenetration.y != 0f) maxPenetration.y -= Mathf.Sign(maxPenetration.y) * (ECConstants.MinContactOffset - 0.005f);
+                // Make gap between EC and collision-target
+                if (maxPenetration.x != 0f) maxPenetration.x -= (maxPenetration.x < 0f ? -maxPenetration.x : maxPenetration.x) * (ECConstants.MinContactOffset - 0.005f);
+                if (maxPenetration.y != 0f) maxPenetration.y -= (maxPenetration.y < 0f ? -maxPenetration.y : maxPenetration.y) * (ECConstants.MinContactOffset - 0.005f);
 
                 penetration = maxPenetration;
                 pushDistance = maxPushVelocity * Time.fixedDeltaTime;

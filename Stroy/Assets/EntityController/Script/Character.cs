@@ -42,11 +42,17 @@ namespace Stroy {
                     break;
                 }
             }
-
             // ====================================================
             
             private const float DEFAULT_GRAVITY = 1f;
             private const float FALL_GRAVITY = 1.5f;
+
+            // Cache
+            private static readonly Vector2 RIGIT_SIDE = new Vector2(1f, -1f).normalized;
+            private static readonly Vector2 LEFT_SIDE = new Vector2(-1f, -1f).normalized;
+            private static readonly Vector2 BOTTOM_RIGHT = new Vector2(0.5f, -0.5f);
+            private static readonly Vector2 BOTTOM_LEFT = new Vector2(-0.5f, -0.5f);
+
 
             // Component
             [HideInInspector] private EntityController m_controller;
@@ -59,16 +65,10 @@ namespace Stroy {
 
             private Vector2 m_velocity;
             private bool m_isGround;
-            private float m_contactAngle;
+            private float m_contactRadian;
             private bool m_isJump;
             private float m_gravityScaler = DEFAULT_GRAVITY;
             [HideInInspector] private Vector2 m_prevPos;
-
-            // Cache
-            private static readonly Vector2 RIGIT_SIDE = new Vector2(1f, -1f).normalized;
-            private static readonly Vector2 LEFT_SIDE = new Vector2(-1f, -1f).normalized;
-            private static readonly Vector2 BOTTOM_RIGHT = new Vector2(0.5f, -0.5f);
-            private static readonly Vector2 BOTTOM_LEFT = new Vector2(-0.5f, -0.5f);
 
             // Input
             private float m_moveDir;
@@ -80,16 +80,20 @@ namespace Stroy {
                 SetJumpHeight(m_maxHeight, m_minHeight);
             }
             private void Update() {
-                Move();
+                HandleMovement();
             }
 
-            private void Move() {
+
+
+
+            #region Movement
+            private void HandleMovement() {
                 Vector2 origin = m_controller.Rigidbody.position;
 
                 bool wasGround = m_isGround;
                 CheckGround(in origin);
 
-                // Revise conner bouncing when character wanted moving on ground at previouse step
+                // Revise conner bouncing
                 if (!m_isGround && wasGround && m_prevPos != origin && !m_isJump) {
                     RaycastHit2D hitBlock = Physics2D.BoxCast(origin, m_controller.Size, 0f, Vector2.down, Mathf.Infinity, 0x01 << ECConstants.StaticBlock);
                     if (TryGetGroundAngle(in hitBlock, out float angle)) {
@@ -98,7 +102,7 @@ namespace Stroy {
                             ) {
                             // On dynamic block, don't support RCB
                             m_controller.SetPosition(origin + Vector2.down * (hitBlock.distance - ECConstants.MinContactOffset));
-                            m_contactAngle = angle;
+                            m_contactRadian = angle * Mathf.Deg2Rad;
                             m_isGround = true;
                             m_prevPos = origin;
                             return;
@@ -111,9 +115,8 @@ namespace Stroy {
                     m_gravityScaler = DEFAULT_GRAVITY;
                 } else if (!m_isGround || m_isJump) { // Airbone
                     if (m_isJump) { // Jumping
-                        // Check touch to cell
-                        RaycastHit2D hitCell = Physics2D.BoxCast(origin, m_controller.Size, 0f, Vector2.up, ECConstants.MaxContactOffset, ECConstants.BlockMask);
-                        if (hitCell) {
+                        // If touch cell, stop to jump and fast fall
+                        if (Physics2D.BoxCast(origin, m_controller.Size, 0f, Vector2.up, ECConstants.MaxContactOffset, ECConstants.BlockMask)) {
                             m_velocity.y = 0f;
                         }
                         if(m_velocity.y <= 0f) {
@@ -124,16 +127,16 @@ namespace Stroy {
                         m_gravityScaler = FALL_GRAVITY;
                     }
                     // Apply gravity
-                    if(m_velocity.y > ECConstants.FallLimit) {
+                    if(m_velocity.y > -ECConstants.FallLimit) {
                         m_velocity.y -= ECConstants.Gravity * Time.deltaTime * m_gravityScaler;
                     } else {
-                        m_velocity.y = ECConstants.FallLimit;
+                        m_velocity.y = -ECConstants.FallLimit;
                     }
                     
                     m_velocity.x = m_moveDir * m_speed;
                 } else { // Walking or Standing
-                    if (m_contactAngle != 0f) {
-                        m_velocity = m_moveDir * m_speed * new Vector2(Mathf.Cos(m_contactAngle * Mathf.Deg2Rad), Mathf.Sin(m_contactAngle * Mathf.Deg2Rad));
+                    if (m_contactRadian != 0f) {
+                        m_velocity = m_moveDir * m_speed * new Vector2(Mathf.Cos(m_contactRadian), Mathf.Sin(m_contactRadian));
                     } else {
                         m_velocity = m_moveDir * m_speed * Vector2.right;
                     }
@@ -151,41 +154,31 @@ namespace Stroy {
 
                     RaycastHit2D hitBlock;
                     // Priority check in move direction
-                    if(m_moveDir < 0f) {
+                    if(m_moveDir < 0f) { // Move left
                         hitBlock = Physics2D.Raycast(origin + size * BOTTOM_LEFT, LEFT_SIDE, ECConstants.MaxContactOffset, ECConstants.BlockMask);
                         if (TryUpdateGroundInfo(in hitBlock)) return;
-
+                    } else if(m_moveDir > 0f){ // Move right                 
                         hitBlock = Physics2D.Raycast(origin + size * BOTTOM_RIGHT, RIGIT_SIDE, ECConstants.MaxContactOffset, ECConstants.BlockMask);
-                        if (TryUpdateGroundInfo(in hitBlock)) return;
-                    } else if(m_moveDir > 0f){                        
-                        hitBlock = Physics2D.Raycast(origin + size * BOTTOM_RIGHT, RIGIT_SIDE, ECConstants.MaxContactOffset, ECConstants.BlockMask);
-                        if (TryUpdateGroundInfo(in hitBlock)) return;
-
-                        hitBlock = Physics2D.Raycast(origin + size * BOTTOM_LEFT, LEFT_SIDE, ECConstants.MaxContactOffset, ECConstants.BlockMask);
                         if (TryUpdateGroundInfo(in hitBlock)) return;
                     }
-                    
                     hitBlock = Physics2D.BoxCast(origin, size, 0f, Vector2.down, ECConstants.MaxContactOffset, ECConstants.BlockMask);
                     if (TryUpdateGroundInfo(in hitBlock)) return;
                 }
 
                 // No ground
                 m_isGround = false;
-                m_contactAngle = 0f;
+                m_contactRadian = 0f;
                 m_controller.SetFollowBlock(null);
             }
             private bool TryUpdateGroundInfo(in RaycastHit2D hitBlock) {
-                if (hitBlock) {
-                    float angle = Vector2.SignedAngle(Vector2.up, hitBlock.normal);
-                    if (-ECConstants.SlopeLimit < angle && angle < ECConstants.SlopeLimit) {
-                        m_isGround = true;
-                        m_contactAngle = angle;
+                if(TryGetGroundAngle(in hitBlock, out float angle)) {
+                    m_isGround = true;
+                    m_contactRadian = angle * Mathf.Deg2Rad;
 
-                        if(hitBlock.collider.gameObject.layer == ECConstants.DynamicBlock) {
-                            m_controller.SetFollowBlock(hitBlock.rigidbody);
-                        }
-                        return true;
+                    if (hitBlock.collider.gameObject.layer == ECConstants.DynamicBlock) {
+                        m_controller.SetFollowBlock(hitBlock.rigidbody);
                     }
+                    return true;
                 }
                 return false;
             }
@@ -207,6 +200,7 @@ namespace Stroy {
                 }
                 return followDistance;
             }
+            #endregion
         }
     }
 }
