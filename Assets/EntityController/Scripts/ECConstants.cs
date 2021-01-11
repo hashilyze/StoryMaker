@@ -10,7 +10,7 @@ namespace Stroy {
            public const float MaxContactOffset = 0.02f; 
 
            public const float Gravity = 10f; 
-           public const float FallLimit = 12f;
+           public const float FallLimit = 12f; 
            public const float SlopeLimit = 50f; 
        } 
    } 

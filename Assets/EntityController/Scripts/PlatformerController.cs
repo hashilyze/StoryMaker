@@ -1,35 +1,24 @@
 ﻿using UnityEngine;
 
-
 namespace Stroy {
     
     namespace EC {
         [RequireComponent(typeof(EntityController))]
-        public class Character : MonoBehaviour {
+        public class PlatformerController : MonoBehaviour {
+            #region Public
             public EntityController Controller => m_controller;
 
-            public bool EnabledMovement {
-                get => m_enabledMovement;
-                set {
-                    m_enabledMovement = value;
-                    if (value == false) {
-                        m_velocity = Vector2.zero;
-                        m_isGround = false;
-                        m_contactRadian = 0f;
-                        m_isJump = false;
-                        m_gravityScale = DEFAULT_GRAVITY;
-                        m_controller.SetFollowBlock(null);
-                    }
-                }    
-            }
             public bool IsGround => m_isGround;
+            public Collider2D ContactGround => m_contactGround;
+            public float ContactRadian => m_contactRadian;
+
 
             public System.Action OnGround;
 
 
             // Action Command
             public void Move(float velocity) {
-                m_moveVal = velocity;
+                m_moveValue = velocity;
             }
             public void Jump(Vector2 velocity) {
                 m_velocity = velocity;
@@ -41,28 +30,39 @@ namespace Stroy {
                     m_gravityScale = scale;
                 }
             }
-            // ----------------------------------------------------------------------------------
+            #endregion
+            
+            #region Private
             private const float DEFAULT_GRAVITY = 1f;
             private const float FALL_GRAVITY = 1.5f;
             // Cache
-            private static readonly Vector2 RIGIT_SIDE = new Vector2(1f, -1f).normalized;
-            private static readonly Vector2 LEFT_SIDE = new Vector2(-1f, -1f).normalized;
+            private static readonly Vector2 SIDE_RIGHT = new Vector2(1f, -1f).normalized;
+            private static readonly Vector2 SIDE_LEFT = new Vector2(-1f, -1f).normalized;
             private static readonly Vector2 BOTTOM_RIGHT = new Vector2(0.5f, -0.5f);
             private static readonly Vector2 BOTTOM_LEFT = new Vector2(-0.5f, -0.5f);
 
             // Component
             [HideInInspector] private EntityController m_controller;
             // State
-            private bool m_enabledMovement;
             private Vector2 m_velocity;
             private bool m_isGround;
             private float m_contactRadian;
+            private Collider2D m_contactGround;
             private bool m_isJump;
             private float m_gravityScale = DEFAULT_GRAVITY;
             [HideInInspector] private Vector2 m_prevPos;
             // Input
-            private float m_moveVal;
+            private float m_moveValue;
 
+
+            private void OnDisable() {
+                m_velocity = Vector2.zero;
+                m_isGround = false;
+                m_contactRadian = 0f;
+                m_isJump = false;
+                m_gravityScale = DEFAULT_GRAVITY;
+                m_controller.SetFollowBlock(null);
+            }
 
             private void Awake() {
                 m_controller = GetComponent<EntityController>();
@@ -70,16 +70,11 @@ namespace Stroy {
                 if(m_controller.FollowDistanceGenerator == null) {
                     m_controller.SetFollowDistanceGenerator(DefaultFollowDistanceGenerator);
                 }
-                m_enabledMovement = true;
             }
             private void Update() {
-                if (m_enabledMovement) {
-                    HandleMovement();
-                }
+                HandleMovement();
             }
 
-
-            #region Movement
             private void HandleMovement() {
                 Vector2 origin = m_controller.Position;
 
@@ -96,6 +91,7 @@ namespace Stroy {
                             // On dynamic block, don't support RCB
                             m_controller.SetPosition(origin + Vector2.down * (hitBlock.distance - ECConstants.MinContactOffset));
                             m_contactRadian = angle * Mathf.Deg2Rad;
+                            m_contactGround = hitBlock.collider;
                             m_isGround = true;
                             m_prevPos = origin;
                             return;
@@ -131,13 +127,13 @@ namespace Stroy {
                         m_velocity.y = -ECConstants.FallLimit;
                     }
                     // Move
-                    m_velocity.x = m_moveVal;
+                    m_velocity.x = m_moveValue;
                 } else { // Walking or Standing
                     // Move
                     if (m_contactRadian != 0f) {
-                        m_velocity = m_moveVal * new Vector2(Mathf.Cos(m_contactRadian), Mathf.Sin(m_contactRadian));
+                        m_velocity = m_moveValue * new Vector2(Mathf.Cos(m_contactRadian), Mathf.Sin(m_contactRadian));
                     } else {
-                        m_velocity = m_moveVal * Vector2.right;
+                        m_velocity = m_moveValue * Vector2.right;
                     }
                 }
 
@@ -153,11 +149,11 @@ namespace Stroy {
 
                     RaycastHit2D hitBlock;
                     // Priority check in move direction
-                    if(m_moveVal < 0f) { // Move left
-                        hitBlock = Physics2D.Raycast(origin + size * BOTTOM_LEFT, LEFT_SIDE, ECConstants.MaxContactOffset, ECConstants.BlockMask);
+                    if(m_moveValue < 0f) { // Move left
+                        hitBlock = Physics2D.Raycast(origin + size * BOTTOM_LEFT, SIDE_LEFT, ECConstants.MaxContactOffset, ECConstants.BlockMask);
                         if (TryUpdateGroundInfo(in hitBlock)) return;
-                    } else if(m_moveVal > 0f){ // Move right
-                        hitBlock = Physics2D.Raycast(origin + size * BOTTOM_RIGHT, RIGIT_SIDE, ECConstants.MaxContactOffset, ECConstants.BlockMask);
+                    } else if(m_moveValue > 0f){ // Move right
+                        hitBlock = Physics2D.Raycast(origin + size * BOTTOM_RIGHT, SIDE_RIGHT, ECConstants.MaxContactOffset, ECConstants.BlockMask);
                         if (TryUpdateGroundInfo(in hitBlock)) return;
                     }
                     hitBlock = Physics2D.BoxCast(origin, size, 0f, Vector2.down, ECConstants.MaxContactOffset, ECConstants.BlockMask);
@@ -167,12 +163,14 @@ namespace Stroy {
                 // No ground
                 m_isGround = false;
                 m_contactRadian = 0f;
+                m_contactGround = null;
                 m_controller.SetFollowBlock(null);
             }
             private bool TryUpdateGroundInfo(in RaycastHit2D hitBlock) {
                 if(TryGetGroundAngle(in hitBlock, out float angle)) {
                     m_isGround = true;
                     m_contactRadian = angle * Mathf.Deg2Rad;
+                    m_contactGround = hitBlock.collider;
 
                     if (hitBlock.collider.gameObject.layer == ECConstants.DynamicBlock) {
                         m_controller.SetFollowBlock(hitBlock.rigidbody);

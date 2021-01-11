@@ -121,13 +121,17 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4228cad5f4fe6f34887f000111fc36f0, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  m_speed: 5
+  m_topSpeed: 5
+  m_acc: 25
+  m_dec: 50
+  m_turnDec: 50
   m_maxJumpHeight: 3
   m_minJumpHeight: 1
-  m_maxJumpCount: 2
+  m_maxJumpCount: 1
   m_dashSpeed: 15
   m_dashDistance: 5
   m_maxDashCount: 1
+  m_wallJumpVelocity: {x: 0, y: 0}
 --- !u!1 &1799592962513601220
 GameObject:
   m_ObjectHideFlags: 0

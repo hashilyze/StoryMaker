@@ -5,8 +5,9 @@ using UnityEngine.InputSystem;
 
 namespace Stroy {
     namespace EC {
-        [RequireComponent(typeof(Character))]
+        [RequireComponent(typeof(PlatformerController))]
         public class Player : MonoBehaviour {
+            #region Public
             // Input Binding
             public void OnMove(InputAction.CallbackContext context) {
                 m_inputAxis = context.ReadValue<Vector2>();
@@ -16,19 +17,22 @@ namespace Stroy {
                 case InputActionPhase.Performed:
                     if (m_enableWallJump) {
                         Vector2 velocity = new Vector2(m_wallJumpVelocity.x * m_inputAxis.x, m_wallJumpVelocity.y);
-                        m_character.Jump(velocity);
+                        m_platformer.Jump(velocity);
                         return;
                     }
-                    
-                    if (m_character.IsGround) {
-                        m_character.Jump(m_jumpVelocity * Vector2.up);
-                    } else if (m_leftJumpCount > 0) { // Morer Jumping
-                        m_character.Jump(m_jumpVelocity * Vector2.up);
+
+                    if (m_platformer.IsGround || m_leftJumpCount > 0) {
+                        m_platformer.Jump(m_jumpVelocity * Vector2.up);
+                        --m_leftJumpCount;
+                        m_jumpDelay = false;
+                    } else {
+                        m_jumpDelay = true;
+                        m_elapsedJumpDelay = 0f;
                     }
-                    --m_leftJumpCount;
                     break;
                 case InputActionPhase.Canceled:
-                    m_character.PauseJump(m_jumpPauseSacler);
+                    m_platformer.PauseJump(m_jumpPauseSacler);
+                    m_jumpDelay = false;
                     break;
                 }
             }
@@ -47,7 +51,6 @@ namespace Stroy {
             public void SetJump(float maxHeight, float minHeight) {
                 m_jumpVelocity = Mathf.Sqrt(maxHeight * 2f * ECConstants.Gravity);
                 m_jumpPauseSacler = maxHeight / minHeight;
-                m_jumpPauseSacler = maxHeight / minHeight;
 
                 m_maxJumpHeight = maxHeight;
                 m_minJumpHeight = minHeight;
@@ -57,18 +60,26 @@ namespace Stroy {
                 m_dashSpeed = speed;
                 m_dashTime = distance / speed;
             }
-            // -----------------------------------------------------------------------------
+            #endregion
+
+            #region Private
+            private const float JUMP_DELAY_LIMIT = 0.1f;
 
             // Component
-            [HideInInspector] private Character m_character;
-            // State
+            [HideInInspector] private PlatformerController m_platformer;
             // Run
-            [SerializeField] private float m_speed;
+            [SerializeField] private float m_topSpeed;
+            [SerializeField] private float m_acc;
+            [SerializeField] private float m_dec;
+            [SerializeField] private float m_turnDec;
+            private float m_currentSpeed;
             // Jump
             [SerializeField] private float m_maxJumpHeight;
             [SerializeField] private float m_minJumpHeight;
             [SerializeField] private int m_maxJumpCount;
             private int m_leftJumpCount;
+            private bool m_jumpDelay;
+            private float m_elapsedJumpDelay;
             [HideInInspector] private float m_jumpVelocity;
             [HideInInspector] private float m_jumpPauseSacler;
             // Dash
@@ -86,7 +97,7 @@ namespace Stroy {
 
 
             private void Awake() {
-                m_character = GetComponent<Character>();
+                m_platformer = GetComponent<PlatformerController>();
 
                 SetJump(m_maxJumpHeight, m_minJumpHeight);
                 SetDash(m_dashDistance, m_dashSpeed);
@@ -94,17 +105,32 @@ namespace Stroy {
                 ResetDashCount();
                 ResetJumpCount();
 
-                m_character.OnGround += ResetJumpCount;
-                m_character.OnGround += ResetDashCount;
+                m_platformer.OnGround += ResetJumpCount;
+                m_platformer.OnGround += ResetDashCount;
             }
             private void Update() {
                 if (m_isDash) return;
-                
-                m_character.Move(m_inputAxis.x * m_speed);
 
-                Vector2 origin = m_character.Controller.Position;
-                if (!m_character.IsGround) {
-                    RaycastHit2D hitWall = Physics2D.BoxCast(origin, m_character.Controller.Size, 0f, m_inputAxis.x * Vector2.right, ECConstants.MaxContactOffset, ECConstants.BlockMask);
+                
+                if (m_jumpDelay) {
+                    m_elapsedJumpDelay += Time.deltaTime;
+                    // Delay time over
+                    if (m_elapsedJumpDelay > JUMP_DELAY_LIMIT) {
+                        m_jumpDelay = false; 
+                    }
+                    
+                    if (m_platformer.IsGround) {
+                        m_jumpDelay = false;
+                        m_platformer.Jump(m_jumpVelocity * Vector2.up);
+                        --m_leftJumpCount;
+                    }
+                }
+
+                Move(m_inputAxis.x);
+
+                Vector2 origin = m_platformer.Controller.Position;
+                if (!m_platformer.IsGround) {
+                    RaycastHit2D hitWall = Physics2D.BoxCast(origin, m_platformer.Controller.Size, 0f, m_inputAxis.x * Vector2.right, ECConstants.MaxContactOffset, ECConstants.BlockMask);
                     if (hitWall) {
                         float angle = Vector2.Angle(Vector2.up, hitWall.normal);
                         if (89f < angle && angle < 91f) {
@@ -114,6 +140,33 @@ namespace Stroy {
                     }
                 }
                 m_enableWallJump = false;
+            }
+
+            private void Move(float inputDir) {
+                float magnitude = m_currentSpeed < 0f ? -m_currentSpeed : m_currentSpeed;
+                float dir = m_currentSpeed < 0f ? -1f : 1f;
+
+                if (inputDir != 0f) {
+                    if (inputDir * m_currentSpeed < 0f) { // Turn
+                        magnitude -= m_turnDec * Time.deltaTime;
+                        if (magnitude < 0f) magnitude = 0f;
+                        m_currentSpeed = magnitude * dir;
+                    } else { // Run
+                        if(magnitude < m_topSpeed) { // Accelerate
+                            magnitude += m_acc * Time.deltaTime;
+                            if (magnitude > m_topSpeed) magnitude = m_topSpeed;
+                            m_currentSpeed = magnitude * inputDir;
+                        }
+                    }
+                } else { // Break
+                    if (magnitude != 0f) {
+                        magnitude -= m_dec * Time.deltaTime;
+                        if(magnitude < 0f) magnitude = 0f;
+                        m_currentSpeed = magnitude * dir;
+                    }
+                }
+
+                m_platformer.Move(m_currentSpeed);
             }
 
 
@@ -127,28 +180,28 @@ namespace Stroy {
                 float elapsedTime = 0f;
                 m_dashTime = m_dashDistance / m_dashSpeed;
 
-                if (m_character.IsGround) {
+                if (m_platformer.IsGround) {
                     while (elapsedTime < m_dashTime) {
                         elapsedTime += Time.deltaTime;
-                        m_character.Move(velocity.x);
+                        m_platformer.Move(velocity.x);
                         yield return null;
                     }
                     ResetDashCount();
                 } else {
-                    m_character.EnabledMovement = false;
-                    EntityController controller = m_character.Controller;
+                    m_platformer.enabled = false;
+                    EntityController controller = m_platformer.Controller;
                     while (elapsedTime < m_dashTime) {
                         elapsedTime += Time.deltaTime;
                         controller.SetVelocity(in velocity);
                         yield return null;
                     }
-                    m_character.EnabledMovement = true;
+                    m_platformer.enabled = true;
                 }
                 
                 m_isDash = false;
                 yield break;
             }
-
+            #endregion
         }
     }
 }

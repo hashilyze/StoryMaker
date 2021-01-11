@@ -4,7 +4,7 @@ using System.IO;
 
 public class ECConfiguresWindow : EditorWindow {
     private const string CLASS = "ECConstants";
-    private const string PATH = "Assets/EntityController/Script/" + CLASS + ".cs";
+    private const string PATH = "Assets/EntityController/Scripts/" + CLASS + ".cs";
     private const string TITLE = "EC Configures";
 
     private const string DEFAULT_STATIC_BLOCK = "StaticBlock";
