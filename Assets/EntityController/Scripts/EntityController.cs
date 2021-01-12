@@ -1,7 +1,6 @@
 ﻿using UnityEngine;
 
 namespace Stroy {
-
     namespace EC {
         [RequireComponent(typeof(BoxCollider2D), typeof(Rigidbody2D))]
         public sealed class EntityController : MonoBehaviour {
@@ -19,18 +18,16 @@ namespace Stroy {
 
 
             // Command
-            public void SetVelocity(in Vector2 velocity) {
+            public void SetVelocity(Vector2 velocity) {
                 m_velocity = velocity;
             }
-
-            public void SetPosition(in Vector2 position, bool safe = false) {
+            public void SetPosition(Vector2 position, bool safe = false) {
                 m_rigidbody.MovePosition(position);
                 m_executedSetPos = true;
                 if (!safe) m_executedUnsafe = true;
             }
-            public void SetSize(in Vector2 size, bool safe = false) {
-                // Unchanged
-                if (m_size == size) return;
+            public void SetSize(Vector2 size, bool safe = false) {
+                if (m_size == size) return; // Unchanged
 
                 m_body.size = size;
                 m_size = size;
@@ -63,7 +60,7 @@ namespace Stroy {
             private int m_dynamicNum;                                       // The number of dynamic blocks which entity touch or overlap
             [HideInInspector] private bool m_executedUnsafe;                // State flag; if flag up, should strictly check
             [HideInInspector] private bool m_executedSetPos;                // State flag; if flag up, current step execute SetPosition, otherwise apply velocity
-            
+
             private Rigidbody2D m_followBlock;
             private System.Func<Rigidbody2D, Vector2> m_getFollowDistance;
             [HideInInspector] private bool m_existFollow;                   // Flag of exist follow block to optimize check
@@ -77,7 +74,7 @@ namespace Stroy {
                 m_executedUnsafe = false;
                 m_executedSetPos = false;
             }
-            
+
             private void Awake() {
                 // Setup body
                 m_body = GetComponent<BoxCollider2D>();
@@ -98,7 +95,7 @@ namespace Stroy {
                 // Initialize properties
                 Vector2 destination = m_rigidbody.position;
                 // Compute destination
-                if (ReactBlock(in destination, out Vector2 preDist, out Vector2 postDist)) {
+                if (ReactBlock(destination, out Vector2 preDist, out Vector2 postDist)) {
                     destination += preDist;
                     ApplyVelocity(ref destination);
                     destination += postDist;
@@ -120,7 +117,7 @@ namespace Stroy {
                 }
             }
 
-            private bool ReactBlock(in Vector2 origin, out Vector2 preDistance, out Vector2 postDistance) {
+            private bool ReactBlock(Vector2 origin, out Vector2 preDistance, out Vector2 postDistance) {
                 preDistance = postDistance = Vector2.zero;
 
                 // Fast check
@@ -189,7 +186,7 @@ namespace Stroy {
                 } else {
                     followDistance = Vector2.zero;
                 }
-                
+
                 preDistance = penetration;
                 postDistance.x = pushedByFollowX || pushDistance.x * followDistance.x < 0f ? pushDistance.x : pushDistance.x + followDistance.x;
                 postDistance.y = pushedByFollowY || pushDistance.y * followDistance.y < 0f ? pushDistance.y : pushDistance.y + followDistance.y;
@@ -213,7 +210,7 @@ namespace Stroy {
                 m_velocity = (destination - befPos) / Time.fixedDeltaTime;
             }
             /// <summary>Add distance to lastest destination</summary>
-            private void AddDistance(ref Vector2 destination, float distance, in Vector2 axis) {
+            private void AddDistance(ref Vector2 destination, float distance, Vector2 axis) {
                 float clampedDist = (distance < 0 ? -distance : distance) + ECConstants.MinContactOffset;
                 float sign = distance < 0 ? -1f : 1f;
 

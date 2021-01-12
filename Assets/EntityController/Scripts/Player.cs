@@ -15,24 +15,14 @@ namespace Stroy {
             public void OnJump(InputAction.CallbackContext context) {
                 switch (context.phase) {
                 case InputActionPhase.Performed:
-                    if (m_enableWallJump) {
-                        Vector2 velocity = new Vector2(m_wallJumpVelocity.x * m_inputAxis.x, m_wallJumpVelocity.y);
-                        m_platformer.Jump(velocity);
-                        return;
-                    }
-
-                    if (m_platformer.IsGround || m_leftJumpCount > 0) {
-                        m_platformer.Jump(m_jumpVelocity * Vector2.up);
-                        --m_leftJumpCount;
-                        m_jumpDelay = false;
+                    if(!m_platformer.IsGround && m_platformer.IsWall) {
+                        WallJump();
                     } else {
-                        m_jumpDelay = true;
-                        m_elapsedJumpDelay = 0f;
+                        Jump();
                     }
                     break;
                 case InputActionPhase.Canceled:
-                    m_platformer.PauseJump(m_jumpPauseSacler);
-                    m_jumpDelay = false;
+                    BreakJump();
                     break;
                 }
             }
@@ -50,7 +40,7 @@ namespace Stroy {
             // State command
             public void SetJump(float maxHeight, float minHeight) {
                 m_jumpVelocity = Mathf.Sqrt(maxHeight * 2f * ECConstants.Gravity);
-                m_jumpPauseSacler = maxHeight / minHeight;
+                m_jumpPauseSacle = maxHeight / minHeight;
 
                 m_maxJumpHeight = maxHeight;
                 m_minJumpHeight = minHeight;
@@ -64,6 +54,7 @@ namespace Stroy {
 
             #region Private
             private const float JUMP_DELAY_LIMIT = 0.1f;
+            private const float DEFAULT_FRICTION = 1f;
 
             // Component
             [HideInInspector] private PlatformerController m_platformer;
@@ -72,16 +63,17 @@ namespace Stroy {
             [SerializeField] private float m_acc;
             [SerializeField] private float m_dec;
             [SerializeField] private float m_turnDec;
+            [SerializeField] private float m_firction = DEFAULT_FRICTION;
             private float m_currentSpeed;
             // Jump
             [SerializeField] private float m_maxJumpHeight;
             [SerializeField] private float m_minJumpHeight;
-            [SerializeField] private int m_maxJumpCount;
-            private int m_leftJumpCount;
+            [HideInInspector] private float m_jumpVelocity;
+            [HideInInspector] private float m_jumpPauseSacle;
+            [SerializeField] private int m_maxMorerJumpCount;
+            private int m_leftMorerJumpCount;
             private bool m_jumpDelay;
             private float m_elapsedJumpDelay;
-            [HideInInspector] private float m_jumpVelocity;
-            [HideInInspector] private float m_jumpPauseSacler;
             // Dash
             [SerializeField] private float m_dashSpeed;
             [SerializeField] private float m_dashDistance;
@@ -91,7 +83,7 @@ namespace Stroy {
             private bool m_isDash;
             // Wall Jump
             [SerializeField] private Vector2 m_wallJumpVelocity;
-            private bool m_enableWallJump;
+            private bool m_isWallJump;
             // Input
             private Vector2 m_inputAxis;
 
@@ -108,9 +100,16 @@ namespace Stroy {
                 m_platformer.OnGround += ResetJumpCount;
                 m_platformer.OnGround += ResetDashCount;
             }
+
             private void Update() {
                 if (m_isDash) return;
 
+                if (m_isWallJump) {
+                    if(!m_platformer.IsGround && m_platformer.Velocity .y > 0f) {
+                        return;
+                    }
+                    m_isWallJump = false;
+                }
                 
                 if (m_jumpDelay) {
                     m_elapsedJumpDelay += Time.deltaTime;
@@ -118,28 +117,18 @@ namespace Stroy {
                     if (m_elapsedJumpDelay > JUMP_DELAY_LIMIT) {
                         m_jumpDelay = false; 
                     }
-                    
-                    if (m_platformer.IsGround) {
-                        m_jumpDelay = false;
-                        m_platformer.Jump(m_jumpVelocity * Vector2.up);
-                        --m_leftJumpCount;
+                    Jump();
+                }
+
+                if (m_platformer.IsGround) {
+                    if (m_platformer.ContactGround.CompareTag("Ice")) {
+                        m_firction = DEFAULT_FRICTION * 0.1f;
+                    } else {
+                        m_firction = DEFAULT_FRICTION;
                     }
                 }
 
                 Move(m_inputAxis.x);
-
-                Vector2 origin = m_platformer.Controller.Position;
-                if (!m_platformer.IsGround) {
-                    RaycastHit2D hitWall = Physics2D.BoxCast(origin, m_platformer.Controller.Size, 0f, m_inputAxis.x * Vector2.right, ECConstants.MaxContactOffset, ECConstants.BlockMask);
-                    if (hitWall) {
-                        float angle = Vector2.Angle(Vector2.up, hitWall.normal);
-                        if (89f < angle && angle < 91f) {
-                            m_enableWallJump = true;
-                            return;
-                        }
-                    }
-                }
-                m_enableWallJump = false;
             }
 
             private void Move(float inputDir) {
@@ -148,19 +137,21 @@ namespace Stroy {
 
                 if (inputDir != 0f) {
                     if (inputDir * m_currentSpeed < 0f) { // Turn
-                        magnitude -= m_turnDec * Time.deltaTime;
+                        magnitude -= m_turnDec * Time.deltaTime * m_firction;
                         if (magnitude < 0f) magnitude = 0f;
                         m_currentSpeed = magnitude * dir;
                     } else { // Run
                         if(magnitude < m_topSpeed) { // Accelerate
-                            magnitude += m_acc * Time.deltaTime;
+                            magnitude += m_acc * Time.deltaTime * m_firction;
                             if (magnitude > m_topSpeed) magnitude = m_topSpeed;
                             m_currentSpeed = magnitude * inputDir;
+                        } else { // Limit speed
+                            m_currentSpeed = m_topSpeed * dir;
                         }
                     }
                 } else { // Break
                     if (magnitude != 0f) {
-                        magnitude -= m_dec * Time.deltaTime;
+                        magnitude -= m_dec * Time.deltaTime * m_firction;
                         if(magnitude < 0f) magnitude = 0f;
                         m_currentSpeed = magnitude * dir;
                     }
@@ -169,8 +160,39 @@ namespace Stroy {
                 m_platformer.Move(m_currentSpeed);
             }
 
+            private bool Jump() {
+                if (m_platformer.IsGround) { // Ground jump
+                    m_platformer.Jump(m_jumpVelocity);
+                    m_jumpDelay = false;
+                    return true;
+                } else if (m_leftMorerJumpCount > 0) { // Morer jump
+                    m_platformer.Jump(m_jumpVelocity);
+                    --m_leftMorerJumpCount;
+                    m_jumpDelay = false;
+                    return true;
+                } else { // Delay
+                    m_jumpDelay = true;
+                    m_elapsedJumpDelay = 0f;
+                    return false;
+                }
+            }
+            private void BreakJump() {
+                m_platformer.BreakJump(m_jumpPauseSacle);
+                m_jumpDelay = false;
+            }
+            private void ResetJumpCount() { m_leftMorerJumpCount = m_maxMorerJumpCount; }
+            private void SetJumpCount(int count) { m_leftMorerJumpCount = Mathf.Clamp(count, 0, m_maxMorerJumpCount); }
 
-            private void ResetJumpCount() { m_leftJumpCount = m_maxJumpCount; }
+
+            private void WallJump() {
+                m_isWallJump = true;
+
+                m_platformer.Jump(m_wallJumpVelocity.y);
+                m_currentSpeed = m_wallJumpVelocity.x * (m_platformer.Collision.HasFlag(ECollision.Right) ? -1f : 1f);
+                m_platformer.Move(m_currentSpeed);
+            }
+
+
             private void ResetDashCount() { m_leftDashCount = m_maxDashCount; }
 
             private IEnumerator Dash(Vector2 direction) {
@@ -192,7 +214,7 @@ namespace Stroy {
                     EntityController controller = m_platformer.Controller;
                     while (elapsedTime < m_dashTime) {
                         elapsedTime += Time.deltaTime;
-                        controller.SetVelocity(in velocity);
+                        controller.SetVelocity(velocity);
                         yield return null;
                     }
                     m_platformer.enabled = true;

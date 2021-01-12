@@ -109,6 +109,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 7ca203c43c0a1a64c95068f1bd77d742, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_activeWallCheck: 1
 --- !u!114 &6450435378540866092
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -125,13 +126,14 @@ MonoBehaviour:
   m_acc: 25
   m_dec: 50
   m_turnDec: 50
+  m_firction: 1
   m_maxJumpHeight: 3
   m_minJumpHeight: 1
-  m_maxJumpCount: 1
+  m_maxMorerJumpCount: 0
   m_dashSpeed: 15
   m_dashDistance: 5
   m_maxDashCount: 1
-  m_wallJumpVelocity: {x: 0, y: 0}
+  m_wallJumpVelocity: {x: 5, y: 7}
 --- !u!1 &1799592962513601220
 GameObject:
   m_ObjectHideFlags: 0
@@ -251,7 +253,7 @@ MonoBehaviour:
     m_ActionName: Player/Dash[/Keyboard/l]
   m_NeverAutoSwitchControlSchemes: 0
   m_DefaultControlScheme: KeyboardMouse
-  m_DefaultActionMap: 5a1244ee-cba8-4cb2-ad7f-1fea62fefca5
+  m_DefaultActionMap: Player
   m_SplitScreenIndex: -1
   m_Camera: {fileID: 0}
 --- !u!1 &5332370854546700414
@@ -313,7 +315,7 @@ Camera:
   far clip plane: 1000
   field of view: 60
   orthographic: 1
-  orthographic size: 10
+  orthographic size: 8
   m_Depth: 0
   m_CullingMask:
     serializedVersion: 2
