@@ -15,6 +15,7 @@ namespace Stroy {
             public Vector2 Position => m_rigidbody.position;
 
             public System.Action<EntityController> OnFreeze;
+            public System.Action<EntityController> OnResize;
 
 
             // Command
@@ -32,6 +33,7 @@ namespace Stroy {
                 m_body.size = size;
                 m_size = size;
                 if (!safe) m_executedUnsafe = true;
+                OnResize?.Invoke(this);
             }
             [ContextMenu("Recovery")]
             public void Recovery() { m_executedUnsafe = true; }
@@ -55,13 +57,13 @@ namespace Stroy {
             [HideInInspector] private Rigidbody2D m_rigidbody;
             [HideInInspector] private BoxCollider2D m_body;
             // State
-            private Vector2 m_velocity;
-            private Vector2 m_size;
+            [SerializeField] private Vector2 m_velocity;
+            [SerializeField] private Vector2 m_size;
             private int m_dynamicNum;                                       // The number of dynamic blocks which entity touch or overlap
             [HideInInspector] private bool m_executedUnsafe;                // State flag; if flag up, should strictly check
             [HideInInspector] private bool m_executedSetPos;                // State flag; if flag up, current step execute SetPosition, otherwise apply velocity
 
-            private Rigidbody2D m_followBlock;
+            [SerializeField] private Rigidbody2D m_followBlock;
             private System.Func<Rigidbody2D, Vector2> m_getFollowDistance;
             [HideInInspector] private bool m_existFollow;                   // Flag of exist follow block to optimize check
 
