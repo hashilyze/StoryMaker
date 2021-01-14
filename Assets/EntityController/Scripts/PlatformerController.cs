@@ -2,28 +2,32 @@
 
 namespace Stroy {
     namespace EC {
-        [System.Flags] public enum ECollision { None = 0x00, Below = 0x01, Above = 0x02, Left = 0x04, Right = 0x08 }
-
-
         [RequireComponent(typeof(EntityController))]
         public class PlatformerController : MonoBehaviour {
             #region Public
             public EntityController Controller => m_controller;
-
+            // State
             public Vector2 Velocity => m_velocity;
-            public ECollision Collision => m_collision;
-            public bool ActiveWallCheck { get => m_activeWallCheck; set => m_activeWallCheck = value; }
-
+            // Contact ground info
             public bool IsGround => m_isGround;
             public Collider2D ContactGround => m_contactGround;
             public float ContactRadian => m_contactRadian;
-
+            // Contact wall info
+            public bool ActiveWallSensor { get => m_activeWallSensor; set => SetWallSensor(value); }
             public bool IsWall => m_isWall;
             public Collider2D ContactWall => m_contactWall;
-
+            public bool WallOnLeft => m_wallOnLeft;
+            public bool WallOnRight => m_wallOnRight;
+            // Event
             public System.Action OnGround;
 
 
+            public void SetWallSensor(bool active) {
+                m_activeWallSensor = active;
+                if(active == false) {
+                    ResetWallInfo();
+                }
+            }
             // Action Command
             /// <summary>Set x-veelocity</summary>
             public void Move(float velocityX) {
@@ -56,19 +60,20 @@ namespace Stroy {
             // State
             [SerializeField] private Vector2 m_velocity;
             [HideInInspector] private Vector2 m_size;
-            [SerializeField] private ECollision m_collision;
-
+            // 
             private bool m_isJumpUp;
             private float m_elapsedJumpUp;
             [SerializeField] private float m_gravityScale = ECConstants.DefaultGravityScale;
-
+            // Contact ground info
             [SerializeField] private bool m_isGround;
             [SerializeField] private float m_contactRadian;
             [SerializeField] private Collider2D m_contactGround;
-
-            [SerializeField] private bool m_activeWallCheck;
+            // Contact wall info
+            [SerializeField] private bool m_activeWallSensor;
             [SerializeField] private bool m_isWall;
             [SerializeField] private Collider2D m_contactWall;
+            [SerializeField] private bool m_wallOnLeft;
+            [SerializeField] private bool m_wallOnRight;
 
             private float m_moveValue;
             [HideInInspector] private Vector2 m_prevPos;
@@ -76,10 +81,10 @@ namespace Stroy {
 
             private void OnDisable() {
                 m_velocity = Vector2.zero;
-                m_collision = ECollision.None;
                 ResetGroundInfo();
                 ResetWallInfo();
                 m_isJumpUp = false;
+                m_elapsedJumpUp = 0f;
                 m_gravityScale = ECConstants.DefaultGravityScale;
             }
 
@@ -89,6 +94,7 @@ namespace Stroy {
                 if(m_controller.FollowDistanceGenerator == null) {
                     m_controller.SetFollowDistanceGenerator(DefaultFollowDistanceGenerator);
                 }
+                // Cache size of entity
                 m_controller.OnResize += CacheSize;
                 if (m_controller.Size != Vector2.zero) {
                     CacheSize(m_controller);
@@ -100,6 +106,10 @@ namespace Stroy {
 
             private void HandleMovement() {
                 Vector2 origin = m_controller.Position;
+
+                if (m_isJumpUp) {
+                    m_elapsedJumpUp += Time.deltaTime;
+                }
 
                 bool wasGround = m_isGround;
                 CheckCollision(origin);
@@ -116,7 +126,6 @@ namespace Stroy {
                             return;
                         } else {
                             ResetGroundInfo();
-                            m_collision ^= ECollision.Below;
                         }
                     }
                 }
@@ -158,20 +167,16 @@ namespace Stroy {
             }
 
             private void CheckCollision(Vector2 origin) {
-                m_collision = ECollision.None;
-                
                 CheckGround(origin);
                 CheckCell(origin);
-                if (m_activeWallCheck) {
+                if (m_activeWallSensor) {
                     CheckWall(origin);
                 }
             }
 
             private void CheckGround(Vector2 origin) {
-                if (m_isJumpUp) {
-                    m_elapsedJumpUp += Time.deltaTime;
-                }
-                if ((!m_isJumpUp || m_elapsedJumpUp > MIN_JUMP_TIME) && (m_isGround || m_velocity.y < (m_velocity.x < 0f ? -m_velocity.x : m_velocity.x))) {
+                if ((!m_isJumpUp || m_elapsedJumpUp > MIN_JUMP_TIME)
+                    && (m_isGround || m_velocity.y < (m_velocity.x < 0f ? -m_velocity.x : m_velocity.x) || m_controller.ContactDynamics)) {
                     // Check uphill
                     if(m_moveValue < 0f) { // Move left
                         if (UpdateGroundInfo(Physics2D.Raycast(origin + m_size * BOTTOM_LEFT, SIDE_LEFT, ECConstants.MaxContactOffset, ECConstants.BlockMask))) return;
@@ -190,7 +195,6 @@ namespace Stroy {
                         m_isGround = true;
                         m_contactRadian = angle * Mathf.Deg2Rad;
                         m_contactGround = hitGround.collider;
-                        m_collision |= ECollision.Below;
                         m_isJumpUp = false;
 
                         if (hitGround.collider.gameObject.layer == ECConstants.DynamicBlock) {
@@ -215,24 +219,25 @@ namespace Stroy {
                     // If touch cell, stop to jump and fast fall
                     if (Physics2D.BoxCast(origin, m_size, 0f, Vector2.up, ECConstants.MaxContactOffset, ECConstants.BlockMask)) {
                         m_velocity.y = 0f;
-                        m_collision |= ECollision.Above;
                     }
                 }
             }
 
-            private void CheckWall(Vector2 origin) {
-                RaycastHit2D hitWall;
-                if (m_moveValue < 0f) { 
-                    hitWall = Physics2D.BoxCast(origin, m_size, 0f, Vector2.right, ECConstants.MaxContactOffset, ECConstants.BlockMask);
-                    if (UpdateWallInfo(hitWall)) return;
-                    hitWall = Physics2D.BoxCast(origin, m_size, 0f, Vector2.left, ECConstants.MaxContactOffset, ECConstants.BlockMask);
-                    if (UpdateWallInfo(hitWall)) return;
-                } else {
-                    hitWall = Physics2D.BoxCast(origin, m_size, 0f, Vector2.left, ECConstants.MaxContactOffset, ECConstants.BlockMask);
-                    if (UpdateWallInfo(hitWall)) return;
-                    hitWall = Physics2D.BoxCast(origin, m_size, 0f, Vector2.right, ECConstants.MaxContactOffset, ECConstants.BlockMask);
-                    if (UpdateWallInfo(hitWall)) return;
-                }
+            private void CheckWall(Vector2 origin) { 
+                if (m_isWall || m_moveValue != 0f || m_controller.ContactDynamics) {
+                    RaycastHit2D hitWall;
+                    if (m_moveValue < 0f) {
+                        hitWall = Physics2D.BoxCast(origin, m_size, 0f, Vector2.right, ECConstants.MaxContactOffset, ECConstants.BlockMask);
+                        if (UpdateWallInfo(hitWall)) return;
+                        hitWall = Physics2D.BoxCast(origin, m_size, 0f, Vector2.left, ECConstants.MaxContactOffset, ECConstants.BlockMask);
+                        if (UpdateWallInfo(hitWall)) return;
+                    } else {
+                        hitWall = Physics2D.BoxCast(origin, m_size, 0f, Vector2.left, ECConstants.MaxContactOffset, ECConstants.BlockMask);
+                        if (UpdateWallInfo(hitWall)) return;
+                        hitWall = Physics2D.BoxCast(origin, m_size, 0f, Vector2.right, ECConstants.MaxContactOffset, ECConstants.BlockMask);
+                        if (UpdateWallInfo(hitWall)) return;
+                    }
+                } 
                 ResetWallInfo();
             }
             private bool UpdateWallInfo(RaycastHit2D hitWall) {
@@ -241,7 +246,13 @@ namespace Stroy {
                     if ((angle < 90f ? 90f - angle : angle - 90f) < ECConstants.WallLimit) {
                         m_isWall = true;
                         m_contactWall = hitWall.collider;
-                        m_collision |= hitWall.normal.x < 0f ? ECollision.Right : ECollision.Left;
+                        if(hitWall.normal.x < 0f) {
+                            m_wallOnRight = true;
+                            m_wallOnLeft = false;
+                        } else {
+                            m_wallOnRight = false;
+                            m_wallOnLeft = true;
+                        }
                         return true;
                     }
                 }
@@ -250,7 +261,9 @@ namespace Stroy {
             private void ResetWallInfo() {
                 m_isWall = false;
                 m_contactWall = null;
+                m_wallOnLeft = m_wallOnRight = false;
             }
+            
 
             private void CacheSize(EntityController ec) => m_size = ec.Size;
 

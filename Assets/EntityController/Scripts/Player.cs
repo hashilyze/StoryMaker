@@ -186,9 +186,9 @@ namespace Stroy {
 
             private void WallJump() {
                 m_isWallJump = true;
-
+                
                 m_platformer.Jump(m_wallJumpVelocity.y);
-                m_currentSpeed = m_wallJumpVelocity.x * (m_platformer.Collision.HasFlag(ECollision.Right) ? -1f : 1f);
+                m_currentSpeed = m_wallJumpVelocity.x * (m_platformer.WallOnLeft ? -1f : 1f);
                 m_platformer.Move(m_currentSpeed);
             }
 
