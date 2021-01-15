@@ -8,6 +8,7 @@ namespace Stroy {
             public EntityController Controller => m_controller;
             // State
             public Vector2 Velocity => m_velocity;
+            public bool IsFall => !m_isGround && m_velocity.y < 0f;
             // Contact ground info
             public bool IsGround => m_isGround;
             public Collider2D ContactGround => m_contactGround;
@@ -20,8 +21,10 @@ namespace Stroy {
             public bool WallOnRight => m_wallOnRight;
             // Event
             public System.Action OnGround;
+            public System.Action OnFall;
 
 
+            // State Command
             public void SetWallSensor(bool active) {
                 m_activeWallSensor = active;
                 if(active == false) {
@@ -29,28 +32,32 @@ namespace Stroy {
                 }
             }
             // Action Command
-            /// <summary>Set x-veelocity</summary>
-            public void Move(float velocityX) {
-                m_moveValue = velocityX;
+            public void MoveX(float velocityX) {
+                m_xVal = velocityX;
             }
-            /// <summary>Set y-velocity</summary>
-            public void Jump(float velocityY) {
+            public void MoveY(float velocityY) {
                 m_velocity.y = velocityY;
-                m_gravityScale = ECConstants.DefaultGravityScale;
-                m_isJumpUp = velocityY > 0f;
-                m_elapsedJumpUp = 0f;
+
+                if(velocityY >= 0f) {
+                    m_gravityScale = ECConstants.DefaultGravityScale;
+                    m_isNormalJump = true;
+                    m_elapsedJump = 0f;
+                } else {
+                    m_gravityScale = ECConstants.FallGravityScale;
+                    m_isNormalJump = false;
+                }
+                
             }
-            /// <summary>Break jump by gravity</summary>
             public void BreakJump(float scale) {
-                if (m_isJumpUp) {
+                if (m_isNormalJump) {
                     m_gravityScale = scale;
+                    m_isNormalJump = false;
                 }
             }
             #endregion
             
             #region Private
             private const float MIN_JUMP_TIME = 0.1f;
-            // Cache
             private static readonly Vector2 SIDE_RIGHT = new Vector2(1f, -1f).normalized;
             private static readonly Vector2 SIDE_LEFT = new Vector2(-1f, -1f).normalized;
             private static readonly Vector2 BOTTOM_RIGHT = new Vector2(0.5f, -0.5f);
@@ -60,9 +67,9 @@ namespace Stroy {
             // State
             [SerializeField] private Vector2 m_velocity;
             [HideInInspector] private Vector2 m_size;
-            // 
-            private bool m_isJumpUp;
-            private float m_elapsedJumpUp;
+            // Jump state
+            private bool m_isNormalJump;
+            private float m_elapsedJump;
             [SerializeField] private float m_gravityScale = ECConstants.DefaultGravityScale;
             // Contact ground info
             [SerializeField] private bool m_isGround;
@@ -75,7 +82,7 @@ namespace Stroy {
             [SerializeField] private bool m_wallOnLeft;
             [SerializeField] private bool m_wallOnRight;
 
-            private float m_moveValue;
+            private float m_xVal;
             [HideInInspector] private Vector2 m_prevPos;
 
 
@@ -83,8 +90,8 @@ namespace Stroy {
                 m_velocity = Vector2.zero;
                 ResetGroundInfo();
                 ResetWallInfo();
-                m_isJumpUp = false;
-                m_elapsedJumpUp = 0f;
+                m_isNormalJump = false;
+                m_elapsedJump = 0f;
                 m_gravityScale = ECConstants.DefaultGravityScale;
             }
 
@@ -107,22 +114,23 @@ namespace Stroy {
             private void HandleMovement() {
                 Vector2 origin = m_controller.Position;
 
-                if (m_isJumpUp) {
-                    m_elapsedJumpUp += Time.deltaTime;
+                if (m_isNormalJump) {
+                    m_elapsedJump += Time.deltaTime;
                 }
 
                 bool wasGround = m_isGround;
                 CheckCollision(origin);
 
                 // Revise conner bouncing
-                if (!m_isGround && wasGround && m_prevPos != origin && !m_isJumpUp) {
+                if (!m_isGround && wasGround && m_prevPos != origin && !m_isNormalJump) {
                     RaycastHit2D hitBlock = Physics2D.BoxCast(origin, m_size, 0f, Vector2.down, Mathf.Infinity, 0x01 << ECConstants.StaticBlock);
                     if (UpdateGroundInfo(hitBlock)) {
                         if (m_velocity.y > 0f && hitBlock.distance <= origin.y - m_prevPos.y + ECConstants.MaxContactOffset
                             || m_velocity.y <= 0f && hitBlock.distance <= Mathf.Tan(m_contactRadian) * (m_prevPos.x - origin.x) + ECConstants.MaxContactOffset
                             ) {
                             m_controller.SetPosition(origin + Vector2.down * (hitBlock.distance - ECConstants.MinContactOffset));
-                            m_prevPos = origin;
+                            
+                            m_prevPos = origin; // End Handle movement
                             return;
                         } else {
                             ResetGroundInfo();
@@ -130,39 +138,45 @@ namespace Stroy {
                     }
                 }
 
-                if (!m_isGround) { // On Airbone
-                    // Clamp fall speed
-                    if (m_velocity.y > -ECConstants.FallLimit) {
-                        m_velocity.y -= ECConstants.Gravity * Time.deltaTime * m_gravityScale;
-                    } else {
-                        m_velocity.y = -ECConstants.FallLimit;
-                    }
-                    // Fall
-                    if (m_velocity.y < 0f) {
-                        m_gravityScale = ECConstants.FallGravityScale;
-                        m_isJumpUp = false;
-                    }
-                    // Move
-                    m_velocity.x = m_moveValue;
-                } else { // On Ground
-                    if (!wasGround) { // Landing
-                        m_gravityScale = ECConstants.DefaultGravityScale;
-                        m_velocity = Vector2.zero;
-                        OnGround?.Invoke();
-                    } else { // Walk or Stand
-                        if(m_moveValue != 0f) {
-                            if (m_contactRadian != 0f) { // Walk on Slope
-                                m_velocity = m_moveValue * new Vector2(Mathf.Cos(m_contactRadian), Mathf.Sin(m_contactRadian));
-                            } else { // Walk on plane
-                                m_velocity = m_moveValue * Vector2.right;
+                // Update Velocity
+                {
+                    if (!m_isGround) { // On Airbone
+                        float preY = m_velocity.y;
+                        // Apply gravity
+                        if (m_velocity.y > -ECConstants.FallLimit) { 
+                            m_velocity.y -= ECConstants.Gravity * Time.deltaTime * m_gravityScale;
+                        } else {
+                            m_velocity.y = -ECConstants.FallLimit;
+                        }
+                        // Fall
+                        if (m_velocity.y < 0f) {
+                            if(preY >= 0f) {
+                                OnFall?.Invoke();
                             }
-                        } else { // Stand
+                            m_gravityScale = ECConstants.FallGravityScale;
+                            m_isNormalJump = false;
+                        }
+                        // Move x-pos
+                        m_velocity.x = m_xVal;
+                    } else { // On Ground
+                        if (!wasGround) { // Landing
+                            m_gravityScale = ECConstants.DefaultGravityScale;
                             m_velocity = Vector2.zero;
+                            OnGround?.Invoke();
+                        } else { // Walk or Stand
+                            if (m_xVal != 0f) {
+                                if (m_contactRadian != 0f) { // Walk on Slope
+                                    m_velocity = m_xVal * new Vector2(Mathf.Cos(m_contactRadian), Mathf.Sin(m_contactRadian));
+                                } else { // Walk on plane
+                                    m_velocity = m_xVal * Vector2.right;
+                                }
+                            } else { // Stand
+                                m_velocity = Vector2.zero;
+                            }
                         }
                     }
+                    m_controller.SetVelocity(m_velocity);
                 }
-
-                m_controller.SetVelocity(m_velocity);
                 m_prevPos = origin;
             }
 
@@ -175,12 +189,12 @@ namespace Stroy {
             }
 
             private void CheckGround(Vector2 origin) {
-                if ((!m_isJumpUp || m_elapsedJumpUp > MIN_JUMP_TIME)
+                if ((!m_isNormalJump || m_elapsedJump > MIN_JUMP_TIME)
                     && (m_isGround || m_velocity.y < (m_velocity.x < 0f ? -m_velocity.x : m_velocity.x) || m_controller.ContactDynamics)) {
                     // Check uphill
-                    if(m_moveValue < 0f) { // Move left
+                    if(m_xVal < 0f) { // Move left
                         if (UpdateGroundInfo(Physics2D.Raycast(origin + m_size * BOTTOM_LEFT, SIDE_LEFT, ECConstants.MaxContactOffset, ECConstants.BlockMask))) return;
-                    } else if(m_moveValue > 0f){ // Move right
+                    } else if(m_xVal > 0f){ // Move right
                         if (UpdateGroundInfo(Physics2D.Raycast(origin + m_size * BOTTOM_RIGHT, SIDE_RIGHT, ECConstants.MaxContactOffset, ECConstants.BlockMask))) return;
                     }
                     if (UpdateGroundInfo(Physics2D.BoxCast(origin, m_size, 0f, Vector2.down, ECConstants.MaxContactOffset, ECConstants.BlockMask))) return;
@@ -195,12 +209,12 @@ namespace Stroy {
                         m_isGround = true;
                         m_contactRadian = angle * Mathf.Deg2Rad;
                         m_contactGround = hitGround.collider;
-                        m_isJumpUp = false;
+                        m_isNormalJump = false;
 
                         if (hitGround.collider.gameObject.layer == ECConstants.DynamicBlock) {
-                            m_controller.SetFollowBlock(hitGround.rigidbody);
+                            m_controller.SetFollower(hitGround.rigidbody);
                         } else {
-                            m_controller.SetFollowBlock(null);
+                            m_controller.SetFollower(null);
                         }
                         return true;
                     }
@@ -211,11 +225,11 @@ namespace Stroy {
                 m_isGround = false;
                 m_contactRadian = 0f;
                 m_contactGround = null;
-                m_controller.SetFollowBlock(null);
+                m_controller.SetFollower(null);
             }
 
             private void CheckCell(Vector2 origin) {
-                if (m_isJumpUp) {
+                if (m_isNormalJump) {
                     // If touch cell, stop to jump and fast fall
                     if (Physics2D.BoxCast(origin, m_size, 0f, Vector2.up, ECConstants.MaxContactOffset, ECConstants.BlockMask)) {
                         m_velocity.y = 0f;
@@ -224,9 +238,9 @@ namespace Stroy {
             }
 
             private void CheckWall(Vector2 origin) { 
-                if (m_isWall || m_moveValue != 0f || m_controller.ContactDynamics) {
+                if (m_isWall || m_xVal != 0f || m_controller.ContactDynamics) {
                     RaycastHit2D hitWall;
-                    if (m_moveValue < 0f) {
+                    if (m_xVal < 0f) {
                         hitWall = Physics2D.BoxCast(origin, m_size, 0f, Vector2.right, ECConstants.MaxContactOffset, ECConstants.BlockMask);
                         if (UpdateWallInfo(hitWall)) return;
                         hitWall = Physics2D.BoxCast(origin, m_size, 0f, Vector2.left, ECConstants.MaxContactOffset, ECConstants.BlockMask);

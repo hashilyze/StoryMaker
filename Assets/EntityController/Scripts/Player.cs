@@ -5,20 +5,18 @@ using UnityEngine.InputSystem;
 
 namespace Stroy {
     namespace EC {
-        [RequireComponent(typeof(PlatformerController))]
+        [RequireComponent(typeof(PlatformerController), typeof(PlayerInput))]
         public class Player : MonoBehaviour {
-            #region Public
-            // Input Binding
+            #region Input Binding
             public void OnMove(InputAction.CallbackContext context) {
                 m_inputAxis = context.ReadValue<Vector2>();
             }
             public void OnJump(InputAction.CallbackContext context) {
                 switch (context.phase) {
                 case InputActionPhase.Performed:
-                    if(!m_platformer.IsGround && m_platformer.IsWall) {
-                        WallJump();
-                    } else {
-                        Jump();
+                    if (WallJump() == false && Jump() == false) {
+                        m_autoJump = true;
+                        m_elapsedAutoJump = 0f;
                     }
                     break;
                 case InputActionPhase.Canceled:
@@ -29,15 +27,19 @@ namespace Stroy {
             public void OnDash(InputAction.CallbackContext context) {
                 if (context.performed) {
                     if (m_isDash || m_leftDashCount <= 0) return;
-                    StartCoroutine(Dash(m_inputAxis.normalized));
+                    StartCoroutine(Dash(m_inputAxis != Vector2.zero ? m_inputAxis.normalized : m_face * Vector2.right));
                     --m_leftDashCount;
                 }
             }
             public void OnAttack(InputAction.CallbackContext context) {
 
             }
+            #endregion
 
-            // State command
+            #region State
+            public void SetFace(float dir) {
+                m_face = dir;
+            }
             public void SetJump(float maxHeight, float minHeight) {
                 m_jumpVelocity = Mathf.Sqrt(maxHeight * 2f * ECConstants.Gravity);
                 m_jumpPauseSacle = maxHeight / minHeight;
@@ -45,19 +47,28 @@ namespace Stroy {
                 m_maxJumpHeight = maxHeight;
                 m_minJumpHeight = minHeight;
             }
+            public void ResetJumpCount() { m_leftMorerJumpCount = m_maxMorerJumpCount; }
+            public void SetJumpCount(int count) { m_leftMorerJumpCount = Mathf.Clamp(count, 0, m_maxMorerJumpCount); }
+
             public void SetDash(float distance, float speed) {
                 m_dashDistance = distance;
                 m_dashSpeed = speed;
                 m_dashTime = distance / speed;
             }
+            public void ResetDashCount() { m_leftDashCount = m_maxDashCount; }
+            public void SetDashCount(int count) { m_leftDashCount = Mathf.Clamp(count, 0, m_maxDashCount); }
             #endregion
 
-            #region Private
-            private const float JUMP_DELAY_LIMIT = 0.1f;
+            #region Variable
+            private const float AUTO_JUMP_LIMIT = 0.1f;
+            private const float MIN_WALL_JUMP = 0.1f;
             private const float DEFAULT_FRICTION = 1f;
 
             // Component
             [HideInInspector] private PlatformerController m_platformer;
+            [HideInInspector] private PlayerInput m_playerInput;
+            // State
+            private float m_face;
             // Run
             [SerializeField] private float m_topSpeed;
             [SerializeField] private float m_acc;
@@ -72,8 +83,16 @@ namespace Stroy {
             [HideInInspector] private float m_jumpPauseSacle;
             [SerializeField] private int m_maxMorerJumpCount;
             private int m_leftMorerJumpCount;
-            private bool m_jumpDelay;
-            private float m_elapsedJumpDelay;
+            // Auto jump
+            private bool m_autoJump;
+            private float m_elapsedAutoJump;
+            // Slide
+            [SerializeField] private float m_slideLimit;
+
+            // Wall Jump
+            [SerializeField] private Vector2 m_wallJumpVelocity;
+            private bool m_isWallJump;
+            private float m_elapsedWallJump;
             // Dash
             [SerializeField] private float m_dashSpeed;
             [SerializeField] private float m_dashDistance;
@@ -81,16 +100,16 @@ namespace Stroy {
             private int m_leftDashCount;
             [HideInInspector] private float m_dashTime;
             private bool m_isDash;
-            // Wall Jump
-            [SerializeField] private Vector2 m_wallJumpVelocity;
-            private bool m_isWallJump;
             // Input
             private Vector2 m_inputAxis;
+            #endregion
 
-
+            #region Component
             private void Awake() {
                 m_platformer = GetComponent<PlatformerController>();
+                m_playerInput = GetComponent<PlayerInput>();
 
+                SetFace(1f);
                 SetJump(m_maxJumpHeight, m_minJumpHeight);
                 SetDash(m_dashDistance, m_dashSpeed);
 
@@ -102,100 +121,131 @@ namespace Stroy {
             }
 
             private void Update() {
-                if (m_isDash) return;
-
-                if (m_isWallJump) {
-                    if(!m_platformer.IsGround && m_platformer.Velocity .y > 0f) {
+                // Dash routine
+                {
+                    if (m_isDash) {
                         return;
                     }
-                    m_isWallJump = false;
                 }
-                
-                if (m_jumpDelay) {
-                    m_elapsedJumpDelay += Time.deltaTime;
-                    // Delay time over
-                    if (m_elapsedJumpDelay > JUMP_DELAY_LIMIT) {
-                        m_jumpDelay = false; 
-                    }
-                    Jump();
-                }
-
-                if (m_platformer.IsGround) {
-                    if (m_platformer.ContactGround.CompareTag("Ice")) {
-                        m_firction = DEFAULT_FRICTION * 0.1f;
-                    } else {
-                        m_firction = DEFAULT_FRICTION;
+                // Wall Jump routine
+                {
+                    if (m_isWallJump) {
+                        m_elapsedWallJump += Time.deltaTime;
+                        if (m_platformer.IsGround || m_platformer.IsFall || (m_elapsedWallJump > MIN_WALL_JUMP && m_platformer.IsWall)) {
+                            m_isWallJump = false;
+                        } else {
+                            return;
+                        }
                     }
                 }
+                // Normal routine: Run-Jump-Slide
+                {
+                    if (m_autoJump) {
+                        m_elapsedAutoJump += Time.deltaTime;
+                        // Auto jump time over or Success
+                        if (m_elapsedAutoJump > AUTO_JUMP_LIMIT || Jump()) {
+                            m_autoJump = false;
+                        }
+                    }
 
-                Move(m_inputAxis.x);
+                    if (m_platformer.IsWall && m_platformer.IsFall) {
+                        if (m_inputAxis.x < 0f && m_platformer.WallOnLeft || m_inputAxis.x > 0f && m_platformer.WallOnRight) {
+                            Slide();
+                        }
+                    }
+
+                    if (m_inputAxis.x != 0f) SetFace(m_inputAxis.x);
+                    Run(m_inputAxis.x);
+                }
             }
+            #endregion
 
-            private void Move(float inputDir) {
+            #region Run
+            /// <summary>Run or AirControl with acceleration</summary>
+            private void Run(float inputDir) {
                 float magnitude = m_currentSpeed < 0f ? -m_currentSpeed : m_currentSpeed;
-                float dir = m_currentSpeed < 0f ? -1f : 1f;
+                float curDir = m_currentSpeed < 0f ? -1f : 1f;
 
                 if (inputDir != 0f) {
                     if (inputDir * m_currentSpeed < 0f) { // Turn
                         magnitude -= m_turnDec * Time.deltaTime * m_firction;
                         if (magnitude < 0f) magnitude = 0f;
-                        m_currentSpeed = magnitude * dir;
+                        m_currentSpeed = magnitude * curDir;
                     } else { // Run
-                        if(magnitude < m_topSpeed) { // Accelerate
+                        if (magnitude < m_topSpeed) { // Accelerate
                             magnitude += m_acc * Time.deltaTime * m_firction;
                             if (magnitude > m_topSpeed) magnitude = m_topSpeed;
                             m_currentSpeed = magnitude * inputDir;
-                        } else { // Limit speed
-                            m_currentSpeed = m_topSpeed * dir;
+                        } else {
+                            // Damp exceed speed only on ground
+                            if (m_platformer.IsGround) {
+                                if(m_topSpeed < magnitude) {
+                                    magnitude -= m_dec * Time.deltaTime * m_firction;
+                                }
+                                m_currentSpeed = magnitude * inputDir;
+                            }
                         }
                     }
-                } else { // Break
-                    if (magnitude != 0f) {
+                } else {
+                    if (magnitude != 0f) { // Break
                         magnitude -= m_dec * Time.deltaTime * m_firction;
-                        if(magnitude < 0f) magnitude = 0f;
-                        m_currentSpeed = magnitude * dir;
+                        if (magnitude < 0f) magnitude = 0f;
+                        m_currentSpeed = magnitude * curDir;
                     }
                 }
 
-                m_platformer.Move(m_currentSpeed);
+                m_platformer.MoveX(m_currentSpeed);
             }
+            #endregion
 
+            #region Jump
             private bool Jump() {
                 if (m_platformer.IsGround) { // Ground jump
-                    m_platformer.Jump(m_jumpVelocity);
-                    m_jumpDelay = false;
-                    return true;
+                    m_platformer.MoveY(m_jumpVelocity);
                 } else if (m_leftMorerJumpCount > 0) { // Morer jump
-                    m_platformer.Jump(m_jumpVelocity);
+                    m_platformer.MoveY(m_jumpVelocity);
                     --m_leftMorerJumpCount;
-                    m_jumpDelay = false;
-                    return true;
-                } else { // Delay
-                    m_jumpDelay = true;
-                    m_elapsedJumpDelay = 0f;
+                } else { // Jump fail 
                     return false;
                 }
+                m_isWallJump = false;
+                m_autoJump = false;
+                return true;
             }
             private void BreakJump() {
                 m_platformer.BreakJump(m_jumpPauseSacle);
-                m_jumpDelay = false;
+                m_autoJump = false;
             }
-            private void ResetJumpCount() { m_leftMorerJumpCount = m_maxMorerJumpCount; }
-            private void SetJumpCount(int count) { m_leftMorerJumpCount = Mathf.Clamp(count, 0, m_maxMorerJumpCount); }
+            #endregion
 
-
-            private void WallJump() {
-                m_isWallJump = true;
-                
-                m_platformer.Jump(m_wallJumpVelocity.y);
-                m_currentSpeed = m_wallJumpVelocity.x * (m_platformer.WallOnLeft ? -1f : 1f);
-                m_platformer.Move(m_currentSpeed);
+            #region Slide
+            private void Slide() {
+                if (m_platformer.Velocity.y < -m_slideLimit) {
+                    m_platformer.MoveY(-m_slideLimit);
+                }
             }
+            #endregion
 
+            #region Wall Jump
+            private bool WallJump() {
+                if(!m_platformer.IsGround && m_platformer.IsWall) {
+                    m_platformer.MoveY(m_wallJumpVelocity.y);
+                    m_currentSpeed = m_wallJumpVelocity.x * (m_platformer.WallOnLeft ? 1f : -1f);
+                    m_platformer.MoveX(m_currentSpeed);
 
-            private void ResetDashCount() { m_leftDashCount = m_maxDashCount; }
+                    SetFace(m_currentSpeed < 0f ? -1f : 1f);
 
+                    m_isWallJump = true;
+                    m_elapsedWallJump = 0f;
+                    return true;
+                }
+                return false;
+            }
+            #endregion
+
+            #region Dash
             private IEnumerator Dash(Vector2 direction) {
+                m_isWallJump = false;
                 m_isDash = true;
 
                 Vector2 velocity = m_dashSpeed * direction;
@@ -205,7 +255,7 @@ namespace Stroy {
                 if (m_platformer.IsGround) {
                     while (elapsedTime < m_dashTime) {
                         elapsedTime += Time.deltaTime;
-                        m_platformer.Move(velocity.x);
+                        m_platformer.MoveX(velocity.x);
                         yield return null;
                     }
                     ResetDashCount();

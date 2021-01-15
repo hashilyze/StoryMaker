@@ -10,14 +10,16 @@ namespace Stroy {
             public BoxCollider2D Body => m_body;
             // Entity State
             public Vector2 Size { get => m_size; set => SetSize(value); }
-            public Vector2 Velocity { get => m_velocity; set => m_velocity = value; }
+            public Vector2 Velocity { get => m_velocity; set => SetVelocity(value); }
             public Vector2 Position => m_rigidbody.position;
             // Contact Dynamics
             public bool ContactDynamics => m_dynamicNum > 0;
-            public Rigidbody2D FollowBlock { get => m_followBlock; set => SetFollowBlock(value); }
+            public Rigidbody2D FollowBlock { get => m_follower; set => SetFollower(value); }
             public System.Func<Rigidbody2D, Vector2> FollowDistanceGenerator { get => m_getFollowDistance; set => SetFollowDistanceGenerator(value); }
             // Event
+            /// <summary>Entity can't react because of stucking</summary>
             public System.Action<EntityController> OnFreeze;
+            /// <summary>Changed size of body</summary>
             public System.Action<EntityController> OnResize;
 
 
@@ -42,8 +44,8 @@ namespace Stroy {
             [ContextMenu("Recovery")]
             public void Recovery() { m_executedUnsafe = true; }
 
-            public void SetFollowBlock(Rigidbody2D followBlock) {
-                m_followBlock = followBlock;
+            public void SetFollower(Rigidbody2D followBlock) {
+                m_follower = followBlock;
                 m_existFollow = followBlock != null;
             }
             public void SetFollowDistanceGenerator(System.Func<Rigidbody2D, Vector2> followDistanceGenerator) {
@@ -67,15 +69,17 @@ namespace Stroy {
             [HideInInspector] private bool m_executedSetPos;                // State flag; if flag up, current step execute SetPosition, otherwise apply velocity
             // Contact dynamics
             private int m_dynamicNum;                                       // The number of dynamic blocks which entity touch or overlap
-            [SerializeField] private Rigidbody2D m_followBlock;
+            [SerializeField] private Rigidbody2D m_follower;                // Current connected follower; it may not be block;
             private System.Func<Rigidbody2D, Vector2> m_getFollowDistance;
             [HideInInspector] private bool m_existFollow;                   // Flag of exist follow block to optimize check
 
 
             private void OnEnable() {
+                // When active, always check state
                 m_executedUnsafe = true;
             }
             private void OnDisable() {
+                // State and flag reset
                 m_velocity = Vector2.zero;
                 m_executedUnsafe = false;
                 m_executedSetPos = false;
@@ -93,23 +97,26 @@ namespace Stroy {
             }
 
             private void FixedUpdate() {
-                // Execute SetPosition, instead of SetVelocity
+                // Move by position
                 if (m_executedSetPos) {
                     m_executedSetPos = false;
                     return;
                 }
-                // Initialize properties
-                Vector2 destination = m_rigidbody.position;
-                // Compute destination
-                if (ReactBlock(destination, out Vector2 preDist, out Vector2 postDist)) {
-                    destination += preDist;
-                    ApplyVelocity(ref destination);
-                    destination += postDist;
-                } else {
-                    ApplyVelocity(ref destination);
+                // Move by velocity
+                {
+                    // Initialize properties
+                    Vector2 destination = m_rigidbody.position;
+                    // Compute destination
+                    if (ReactBlock(destination, out Vector2 preDist, out Vector2 postDist)) {
+                        destination += preDist;
+                        ApplyVelocity(ref destination);
+                        destination += postDist;
+                    } else {
+                        ApplyVelocity(ref destination);
+                    }
+                    // Apply destination
+                    m_rigidbody.MovePosition(destination);
                 }
-                // Apply destination
-                m_rigidbody.MovePosition(destination);
             }
 
             private void OnCollisionEnter2D(Collision2D collision) {
@@ -154,11 +161,11 @@ namespace Stroy {
                                 if (Vector2.Dot(newPushVelocity, newPenetration) > 0f) { // Query only forward objects
                                                                                          // Update push-velocity
                                     if (colliderDist.normal.x != 0f && Mathf.Abs(maxPushVelocity.x) < Mathf.Abs(newPushVelocity.x)) {
-                                        pushedByFollowX = m_existFollow && detectedCollider.attachedRigidbody == m_followBlock;
+                                        pushedByFollowX = m_existFollow && detectedCollider.attachedRigidbody == m_follower;
                                         maxPushVelocity.x = newPushVelocity.x;
                                     }
                                     if (colliderDist.normal.y != 0f && Mathf.Abs(maxPushVelocity.y) < Mathf.Abs(newPushVelocity.y)) {
-                                        pushedByFollowY = m_existFollow && detectedCollider.attachedRigidbody == m_followBlock;
+                                        pushedByFollowY = m_existFollow && detectedCollider.attachedRigidbody == m_follower;
                                         maxPushVelocity.y = newPushVelocity.y;
                                     }
                                 }
@@ -189,7 +196,7 @@ namespace Stroy {
                 // Calcuate Follow
                 {
                     if (m_existFollow) {
-                        followDistance = m_getFollowDistance(m_followBlock);
+                        followDistance = m_getFollowDistance(m_follower);
                     } else {
                         followDistance = Vector2.zero;
                     }
@@ -245,17 +252,15 @@ namespace Stroy {
                 // Clamp distance
                 for (int n = 0; n != numBlock; ++n) {
                     RaycastHit2D blockHit = m_bufferHit[n];
-
                     // [Dynamic]
                     // Adjust blockHit.distance
                     if (blockHit.collider.gameObject.layer == ECConstants.DynamicBlock) {
                         float dynamicVelocity = axis.x != 0f ? blockHit.rigidbody.velocity.x : blockHit.rigidbody.velocity.y;
-                        // Extend hit.distance because of synchronizing with position of dynamic block at next step
+                        // Extend hit.distance because synchronize with position of dynamic block at next step
                         if (sign * dynamicVelocity > 0f) {
                             blockHit.distance += (dynamicVelocity < 0 ? -dynamicVelocity : dynamicVelocity) * Time.fixedDeltaTime;
                         }
                     }
-
                     // Update add-distance
                     if (blockHit.distance < clampedDist) clampedDist = blockHit.distance;
                 }
