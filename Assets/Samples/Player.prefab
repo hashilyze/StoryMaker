@@ -15,7 +15,7 @@ GameObject:
   - component: {fileID: 8717584209980366732}
   - component: {fileID: 6450435378540866092}
   - component: {fileID: 8861305014682220591}
-  m_Layer: 8
+  m_Layer: 10
   m_Name: Player
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -117,7 +117,7 @@ MonoBehaviour:
   m_isGround: 0
   m_contactRadian: 0
   m_contactGround: {fileID: 0}
-  m_activeWallSensor: 0
+  m_activeWallSensor: 1
   m_isWall: 0
   m_contactWall: {fileID: 0}
   m_wallOnLeft: 0
@@ -142,10 +142,11 @@ MonoBehaviour:
   m_maxJumpHeight: 3
   m_minJumpHeight: 1
   m_maxMorerJumpCount: 0
+  m_slideLimit: 6
+  m_wallJumpVelocity: {x: 5, y: 7}
   m_dashSpeed: 15
   m_dashDistance: 5
   m_maxDashCount: 1
-  m_wallJumpVelocity: {x: 5, y: 7}
 --- !u!114 &8861305014682220591
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -248,7 +249,7 @@ GameObject:
   - component: {fileID: 5624135750743970601}
   - component: {fileID: 2232205304939633740}
   - component: {fileID: 4864838755887628368}
-  m_Layer: 8
+  m_Layer: 10
   m_Name: Camera
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -330,7 +331,7 @@ GameObject:
   m_Component:
   - component: {fileID: 4285972529075271554}
   - component: {fileID: 9051410970407177373}
-  m_Layer: 8
+  m_Layer: 10
   m_Name: Graphics
   m_TagString: Untagged
   m_Icon: {fileID: 0}

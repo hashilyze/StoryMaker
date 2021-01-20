@@ -13,7 +13,7 @@ GameObject:
   - component: {fileID: 983575611378615140}
   - component: {fileID: 586501726026161741}
   - component: {fileID: 8717584209980366732}
-  m_Layer: 8
+  m_Layer: 10
   m_Name: Dummy
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -96,7 +96,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   m_velocity: {x: 0, y: 0}
   m_size: {x: 0, y: 0}
-  m_followBlock: {fileID: 0}
+  m_follower: {fileID: 0}
 --- !u!114 &8717584209980366732
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -110,14 +110,15 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   m_velocity: {x: 0, y: 0}
-  m_collision: 0
   m_gravityScale: 1
   m_isGround: 0
   m_contactRadian: 0
   m_contactGround: {fileID: 0}
-  m_activeWallCheck: 1
+  m_activeWallSensor: 0
   m_isWall: 0
   m_contactWall: {fileID: 0}
+  m_wallOnLeft: 0
+  m_wallOnRight: 0
 --- !u!1 &6623568361547523406
 GameObject:
   m_ObjectHideFlags: 0
@@ -128,7 +129,7 @@ GameObject:
   m_Component:
   - component: {fileID: 4285972529075271554}
   - component: {fileID: 9051410970407177373}
-  m_Layer: 8
+  m_Layer: 10
   m_Name: Graphics
   m_TagString: Untagged
   m_Icon: {fileID: 0}

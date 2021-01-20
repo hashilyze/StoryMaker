@@ -1,10 +1,10 @@
 namespace Stroy { 
 	namespace EC { 
 		public static class ECConstants{ 
-			public const int StaticBlock = 9; 
-			public const int DynamicBlock = 10; 
-			public const int Entity = 8; 
-			public const int BlockMask = 1536; 
+			public const int StaticBlock = 8; 
+			public const int DynamicBlock = 9; 
+			public const int Entity = 10; 
+			public const int BlockMask = 768; 
 
 			public const float MinContactOffset = 0.01f; 
 			public const float MaxContactOffset = 0.02f; 

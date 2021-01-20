@@ -4,7 +4,7 @@ namespace Stroy {
     namespace EC {
         [RequireComponent(typeof(BoxCollider2D), typeof(Rigidbody2D))]
         public sealed class EntityController : MonoBehaviour {
-            #region public
+            #region Public
             // Component
             public Rigidbody2D Rigidbody => m_rigidbody;
             public BoxCollider2D Body => m_body;
