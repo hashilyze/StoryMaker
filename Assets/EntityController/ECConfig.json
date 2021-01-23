@@ -1,1 +1,0 @@
-{"StaticBlock":"StaticBlock","DynamicBlock":"DynamicBlock","Entity":"Entity","MinContactOffset":0.01,"MaxContactOffset":0.02,"Gravity":10.0,"FallLimit":12.0,"SlopeLimit":50.0,"WallLimit":0.1,"DefaultGravityScale":1.0,"FallGravityScale":1.5}
