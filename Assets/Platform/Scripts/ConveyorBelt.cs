@@ -4,9 +4,9 @@ using UnityEngine;
 
 
 namespace Stroy {
-    namespace Entity {
-        public class CharacterState : ScriptableObject {
-            public float Headth;
+    namespace Platform {
+        public class ConveyorBelt : MonoBehaviour {
+            public float Speed;
         }
     }
 }

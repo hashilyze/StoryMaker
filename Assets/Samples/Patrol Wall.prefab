@@ -9,12 +9,12 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 983575611378615143}
-  - component: {fileID: 983575611378615139}
+  - component: {fileID: 5757042799342230670}
   - component: {fileID: 983575611378615140}
-  - component: {fileID: 586501726026161741}
-  - component: {fileID: 8717584209980366732}
-  m_Layer: 10
-  m_Name: Box
+  - component: {fileID: 2122547848560762063}
+  - component: {fileID: 3075872836752183818}
+  m_Layer: 9
+  m_Name: Patrol Wall
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -35,7 +35,7 @@ Transform:
   m_Father: {fileID: 0}
   m_RootOrder: 0
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!61 &983575611378615139
+--- !u!61 &5757042799342230670
 BoxCollider2D:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -51,10 +51,10 @@ BoxCollider2D:
   m_Offset: {x: 0, y: 0}
   m_SpriteTilingProperty:
     border: {x: 0, y: 0, z: 0, w: 0}
-    pivot: {x: 0.5, y: 0.5}
-    oldSize: {x: 1, y: 1}
-    newSize: {x: 1, y: 1}
-    adaptiveTilingThreshold: 0.5
+    pivot: {x: 0, y: 0}
+    oldSize: {x: 0, y: 0}
+    newSize: {x: 0, y: 0}
+    adaptiveTilingThreshold: 0
     drawMode: 0
     adaptiveTiling: 0
   m_AutoTiling: 0
@@ -82,7 +82,7 @@ Rigidbody2D:
   m_SleepingMode: 1
   m_CollisionDetection: 0
   m_Constraints: 4
---- !u!114 &586501726026161741
+--- !u!114 &2122547848560762063
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -91,15 +91,11 @@ MonoBehaviour:
   m_GameObject: {fileID: 983575611378615144}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 69c63a59ce443d543a918c95d8a5cf04, type: 3}
+  m_Script: {fileID: 11500000, guid: 0b353c91a06ce2541a97ab0a34dd5b5a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  m_velocity: {x: 0, y: 0}
-  m_size: {x: 0, y: 0}
-  m_useGravity: 1
-  m_gravityScale: 1
-  m_followPlatform: {fileID: 0}
---- !u!114 &8717584209980366732
+  m_agent: {fileID: 3075872836752183818}
+--- !u!114 &3075872836752183818
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -108,18 +104,13 @@ MonoBehaviour:
   m_GameObject: {fileID: 983575611378615144}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 7ca203c43c0a1a64c95068f1bd77d742, type: 3}
+  m_Script: {fileID: 11500000, guid: cb8b9f0c7ff61564fa3a476106b7691d, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  m_velocity: {x: 0, y: 0}
-  m_isGround: 0
-  m_contactRadian: 0
-  m_contactGround: {fileID: 0}
-  m_activeWallSensor: 0
-  m_isWall: 0
-  m_contactWall: {fileID: 0}
-  m_wallOnLeft: 0
-  m_wallOnRight: 0
+  m_track: {fileID: 0}
+  Speed: 0
+  m_asscending: 1
+  m_coolDownLimit: 0
 --- !u!1 &6623568361547523406
 GameObject:
   m_ObjectHideFlags: 0
@@ -130,7 +121,7 @@ GameObject:
   m_Component:
   - component: {fileID: 4285972529075271554}
   - component: {fileID: 9051410970407177373}
-  m_Layer: 10
+  m_Layer: 9
   m_Name: Graphics
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -190,8 +181,8 @@ SpriteRenderer:
   m_SortingLayerID: 0
   m_SortingLayer: 0
   m_SortingOrder: 0
-  m_Sprite: {fileID: 21300000, guid: a044be438ea6e5442a405a2f648aa5f6, type: 3}
-  m_Color: {r: 1, g: 1, b: 1, a: 1}
+  m_Sprite: {fileID: 21300000, guid: 39ef45195352da141a2d04fef7411421, type: 3}
+  m_Color: {r: 0.4433962, g: 0.4433962, b: 0.4433962, a: 1}
   m_FlipX: 0
   m_FlipY: 0
   m_DrawMode: 0

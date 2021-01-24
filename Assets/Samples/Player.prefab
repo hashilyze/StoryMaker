@@ -99,7 +99,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   m_velocity: {x: 0, y: 0}
   m_size: {x: 0, y: 0}
-  m_follower: {fileID: 0}
+  m_useGravity: 1
+  m_gravityScale: 1
+  m_followPlatform: {fileID: 0}
 --- !u!114 &8717584209980366732
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -113,7 +115,6 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   m_velocity: {x: 0, y: 0}
-  m_gravityScale: 1
   m_isGround: 0
   m_contactRadian: 0
   m_contactGround: {fileID: 0}
