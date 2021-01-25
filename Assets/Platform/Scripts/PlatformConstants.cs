@@ -1,7 +1,4 @@
-﻿using System.Collections;
-using System.Collections.Generic;
-using UnityEngine;
-
+﻿using UnityEngine;
 
 namespace Stroy {
     namespace Platform {
@@ -11,24 +8,9 @@ namespace Stroy {
             #region Platform Tag & Layer
             public const string T_Belt = "Belt";
 
-            public const int L_StaticBlock = 8;
-            public const int L_DynamicBlock = 9;
-            public const int L_BlockMask = 0x01 << L_StaticBlock | 0x01 << L_DynamicBlock;
-            #endregion
-
-            #region Effector
-            public static bool IsAttackPlatform(string tag) {
-                throw new System.NotImplementedException();
-            }
-            public static bool IsStepPlatform(string tag) {
-                return tag == T_Belt;
-            }
-            public static bool IsGrabPlatform(string tag) {
-                throw new System.NotImplementedException();
-            }
-            public static bool IsHeadingPlatform(string tag) {
-                throw new System.NotImplementedException();
-            }
+            public static readonly int L_StaticBlock = LayerMask.NameToLayer("StaticBlock");
+            public static readonly int L_DynamicBlock = LayerMask.NameToLayer("DynamicBlock");
+            public static readonly int L_BlockMask = 0x01 << L_StaticBlock | 0x01 << L_DynamicBlock;
             #endregion
         }
     }

@@ -79,17 +79,17 @@ namespace Stroy.Entity {
         [HideInInspector] private bool m_existFollow;                   // Whether exist follow
         [HideInInspector] private bool m_followIsBlock;                 // Whether follow platform is block
 
+
+        // Life Cycle
         private void OnEnable() {
             // When active, always check state
             m_executedUnsafe = true;
         }
         private void OnDisable() {
-            // State and flag reset
             m_velocity = Vector2.zero;
             m_executedUnsafe = false;
             m_executedSetPos = false;
         }
-
         private void Awake() {
             // Setup body
             m_body = GetComponent<BoxCollider2D>();
@@ -101,6 +101,7 @@ namespace Stroy.Entity {
             m_rigidbody.constraints = RigidbodyConstraints2D.FreezeRotation;
         }
 
+        // Physics Update
         private void FixedUpdate() {
             // Move by position
             {
@@ -118,7 +119,7 @@ namespace Stroy.Entity {
                 if (m_useGravity) {
                     if (m_velocity.y >= -EntityConstants.FallLimit) { // Apply gravity
                         m_velocity.y -= EntityConstants.Gravity * deltaTime * m_gravityScale;
-                    } else { // Reach max fall speed
+                    } else { // Limit fall speed
                         m_velocity.y = -EntityConstants.FallLimit;
                     }
                 }
@@ -136,12 +137,14 @@ namespace Stroy.Entity {
             }
         }
 
+        // Collision Events
         private void OnCollisionEnter2D(Collision2D collision) {
             if (collision.gameObject.layer == PlatformConstants.L_DynamicBlock) ++m_dynamicBlockNum;
         }
         private void OnCollisionExit2D(Collision2D collision) {
             if (collision.gameObject.layer == PlatformConstants.L_DynamicBlock) --m_dynamicBlockNum;
         }
+
 
         private bool ReactBlock(Vector2 origin, out Vector2 preDistance, out Vector2 postDistance, float deltaTime) {
             preDistance = postDistance = Vector2.zero;

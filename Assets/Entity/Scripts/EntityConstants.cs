@@ -1,3 +1,5 @@
+using UnityEngine;
+
 namespace Stroy.Entity {
     public static class EntityConstants {
         #region Contact Configures
@@ -8,7 +10,7 @@ namespace Stroy.Entity {
         #region Tag & Layer
         public const string T_Player = "Player";
 
-        public const int L_Entity = 10;
+        public static readonly int L_Entity = LayerMask.NameToLayer("Entity");
         #endregion
 
         #region Character Configures

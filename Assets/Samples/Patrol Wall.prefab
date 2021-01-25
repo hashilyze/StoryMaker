@@ -11,8 +11,7 @@ GameObject:
   - component: {fileID: 983575611378615143}
   - component: {fileID: 5757042799342230670}
   - component: {fileID: 983575611378615140}
-  - component: {fileID: 2122547848560762063}
-  - component: {fileID: 3075872836752183818}
+  - component: {fileID: 7855101005411550516}
   m_Layer: 9
   m_Name: Patrol Wall
   m_TagString: Untagged
@@ -82,7 +81,7 @@ Rigidbody2D:
   m_SleepingMode: 1
   m_CollisionDetection: 0
   m_Constraints: 4
---- !u!114 &2122547848560762063
+--- !u!114 &7855101005411550516
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -91,26 +90,14 @@ MonoBehaviour:
   m_GameObject: {fileID: 983575611378615144}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 0b353c91a06ce2541a97ab0a34dd5b5a, type: 3}
+  m_Script: {fileID: 11500000, guid: 8154927ec62e1a340b900b0de09c1361, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  m_agent: {fileID: 3075872836752183818}
---- !u!114 &3075872836752183818
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 983575611378615144}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: cb8b9f0c7ff61564fa3a476106b7691d, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
+  m_velocity: {x: 0, y: 0}
+  m_isFollow: 1
   m_track: {fileID: 0}
-  Speed: 0
+  m_followSpeed: 0
   m_asscending: 1
-  m_coolDownLimit: 0
 --- !u!1 &6623568361547523406
 GameObject:
   m_ObjectHideFlags: 0

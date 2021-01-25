@@ -31,9 +31,7 @@ namespace Stroy.Entity {
                 --m_leftDashCount;
             }
         }
-        public void OnAttack(InputAction.CallbackContext context) {
-
-        }
+        public void OnAttack(InputAction.CallbackContext context) { }
         #endregion
 
         #region State
@@ -160,11 +158,10 @@ namespace Stroy.Entity {
                         m_platformer.Grab(m_platformer.ContactWall);
                     }
                     Slide(deltaTime);
-                } else if(wasSlide){
+                } else if (wasSlide) {
                     m_isSlide = false;
                     m_platformer.Release();
                 }
-                
                 if (m_inputAxis.x != 0f) SetFace(m_inputAxis.x);
                 Run(m_inputAxis.x, deltaTime);
             }

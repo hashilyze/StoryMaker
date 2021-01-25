@@ -10,6 +10,8 @@ namespace Stroy.Entity {
         // State
         public Vector2 Velocity => m_velocity;
         public bool IsFall => !m_isGround && m_velocity.y < 0f;
+
+
         // Contact ground info
         public bool IsGround => m_isGround;
         public Collider2D ContactGround => m_contactGround;
@@ -20,6 +22,9 @@ namespace Stroy.Entity {
         public Collider2D ContactWall => m_contactWall;
         public bool WallOnLeft => m_wallOnLeft;
         public bool WallOnRight => m_wallOnRight;
+        // Contact cell info
+        public bool IsCell => m_isCell;
+
         // Event
         public System.Action OnLanding;
         public System.Action OnFalling;
@@ -28,7 +33,7 @@ namespace Stroy.Entity {
         // State Command
         public void SetWallSensor(bool active) {
             m_activeWallSensor = active;
-            if (active == false) ResetWallInfo();
+            if (!active) ResetWallInfo();
         }
         // Action Command
         public void Run(float velocity) { m_runSpeed = velocity; }
@@ -37,11 +42,11 @@ namespace Stroy.Entity {
             m_velocity.y = velocity;
             m_entity.SetVelocity(m_velocity);
 
-            if (velocity >= 0f) {
+            if (velocity >= 0f) { // Jump
                 m_entity.SetGravityScale(EntityConstants.DefaultGravityScale);
                 m_isJump = true;
                 m_elapsedJump = 0f;
-            } else {
+            } else { // Instants fall
                 m_entity.SetGravityScale(EntityConstants.FallGravityScale);
                 m_isJump = false;
             }
@@ -54,8 +59,6 @@ namespace Stroy.Entity {
             }
             return false;
         }
-        
-
         public void Grab(Collider2D wall) {
             if (wall.gameObject.layer == PlatformConstants.L_DynamicBlock) {
                 m_entity.SetFollower(wall.attachedRigidbody);
@@ -93,6 +96,8 @@ namespace Stroy.Entity {
         private static readonly Vector2 L_SLOPE_DIR = new Vector2(-1f, -1f).normalized;
         private static readonly Vector2 BR_OFFSET = new Vector2(0.5f, -0.5f);
         private static readonly Vector2 BL_OFFSET = new Vector2(-0.5f, -0.5f);
+        private static readonly Vector2 TR_OFFSET = new Vector2(0.5f, 0.5f);
+        private static readonly Vector2 TL_OFFSET = new Vector2(-0.5f, 0.5f);
         // Component
         [HideInInspector] private EntityController m_entity;
         // State
@@ -122,20 +127,19 @@ namespace Stroy.Entity {
         [SerializeField] private bool m_isCell;
 
 
+        // Life cycle
         private void OnDisable() {
             m_velocity = Vector2.zero;
-            
+            m_entity.SetGravityScale(EntityConstants.DefaultGravityScale);
+            // Reset Actions
             Run(0f);
             BreakJump(1f);
             Release();
-
+            // Reset Contacts
             ResetGroundInfo();
             ResetWallInfo();
             ResetCellInfo();
-
-            m_entity.SetGravityScale(EntityConstants.DefaultGravityScale);
         }
-
         private void Awake() {
             m_entity = GetComponent<EntityController>();
 
@@ -148,6 +152,8 @@ namespace Stroy.Entity {
                 CacheSize(m_entity);
             }
         }
+
+
         private void Update() { HandleMovement(); }
 
         private void HandleMovement() {
@@ -160,14 +166,13 @@ namespace Stroy.Entity {
 
             CheckCollision(origin);
 
-            // Revise conner bouncing
+            // Recovery slope bouncing
             {
                 if (!m_isGround && wasGround && m_lastPos != origin && !m_isJump && !m_isClimb) {
                     RaycastHit2D hitBlock = Physics2D.BoxCast(origin, m_size, 0f, Vector2.down, Mathf.Infinity, 0x01 << PlatformConstants.L_StaticBlock);
                     if (UpdateGroundInfo(hitBlock)) {
                         if (m_velocity.y > 0f && hitBlock.distance <= origin.y - m_lastPos.y + EntityConstants.MaxContactOffset
-                            || m_velocity.y <= 0f && hitBlock.distance <= Mathf.Tan(m_contactRadian) * (m_lastPos.x - origin.x) + EntityConstants.MaxContactOffset
-                            ) {
+                            || m_velocity.y <= 0f && hitBlock.distance <= Mathf.Tan(m_contactRadian) * (m_lastPos.x - origin.x) + EntityConstants.MaxContactOffset) {
                             m_entity.SetPosition(origin + Vector2.down * (hitBlock.distance - EntityConstants.MinContactOffset));
                             // End HandleMovement
                             m_lastVelocity = m_velocity;
@@ -182,13 +187,10 @@ namespace Stroy.Entity {
 
             // Update Velocity
             {
-                
                 if (m_isGround) { // On Ground
                     if (wasGround) {
                         if (m_runSpeed != 0f) { // Run
-                            if (m_contactRadian != 0f
-                                && (!m_isWall || (m_runSpeed < 0f && m_wallOnRight) || (m_runSpeed > 0f && m_wallOnLeft))
-                                ) { // On slope
+                            if (m_contactRadian != 0f && (!m_isWall || !((m_runSpeed < 0f && m_wallOnLeft) || (m_runSpeed > 0f && m_wallOnRight)) )) { // On slope; only exist climb area
                                 m_velocity = m_runSpeed * new Vector2(Mathf.Cos(m_contactRadian), Mathf.Sin(m_contactRadian));
                             } else { // On plane
                                 m_velocity = m_runSpeed * Vector2.right;
@@ -202,15 +204,14 @@ namespace Stroy.Entity {
                         OnLanding?.Invoke();
                     }
                 } else { // On Airbone
+                    // Touch cell
                     if (m_isJump && m_isCell) m_velocity.y = 0f;
 
-                    // Fall
-                    if (m_velocity.y < 0f) {
-                        if (m_lastVelocity.y >= 0f) {
-                            OnFalling?.Invoke();
-                        }
+                    // Falling
+                    if (m_velocity.y < 0f && (m_lastVelocity.y >= 0f || wasGround)) {
                         m_entity.SetGravityScale(EntityConstants.FallGravityScale);
                         m_isJump = false;
+                        OnFalling?.Invoke();
                     }
                     m_velocity.x = m_runSpeed;
                 }
@@ -288,18 +289,28 @@ namespace Stroy.Entity {
             m_isCell = false;
         }
 
-
         private void CheckWall(Vector2 origin) {
             if (m_isWall || m_runSpeed != 0f || m_entity.ContactDynamics) {
-                if (m_runSpeed < 0f) {
-                    if (UpdateWallInfo(Physics2D.BoxCast(origin, m_size, 0f, Vector2.left, EntityConstants.MaxContactOffset, PlatformConstants.L_BlockMask))) return;
-                    if (UpdateWallInfo(Physics2D.BoxCast(origin, m_size, 0f, Vector2.right, EntityConstants.MaxContactOffset, PlatformConstants.L_BlockMask))) return;
+                float sign = m_runSpeed < 0f ? -1f : 1f;
+                if (m_runSpeed * m_contactRadian > 0f) {
+                    if (UpdateWallInfo(WallCast(origin, sign, false))) return;
+                    if (UpdateWallInfo(WallCast(origin, sign, true))) return;
+                    if (UpdateWallInfo(WallCast(origin, -sign, false))) return;
+                    if (UpdateWallInfo(WallCast(origin, -sign, true))) return;
                 } else {
-                    if (UpdateWallInfo(Physics2D.BoxCast(origin, m_size, 0f, Vector2.right, EntityConstants.MaxContactOffset, PlatformConstants.L_BlockMask))) return;
-                    if (UpdateWallInfo(Physics2D.BoxCast(origin, m_size, 0f, Vector2.left, EntityConstants.MaxContactOffset, PlatformConstants.L_BlockMask))) return;
+                    if (UpdateWallInfo(WallCast(origin, sign, true))) return;
+                    if (UpdateWallInfo(WallCast(origin, -sign, true))) return;
                 }
             }
             ResetWallInfo();
+        }
+        private RaycastHit2D WallCast(Vector2 origin, float dir, bool box) {
+            if (box) {
+                return Physics2D.BoxCast(origin, m_size, 0f, dir * Vector2.right, EntityConstants.MaxContactOffset, PlatformConstants.L_BlockMask);
+            } else {
+                return Physics2D.Raycast(origin + m_size * (dir < 0f ? TL_OFFSET : TR_OFFSET),
+                    dir * Vector2.right, EntityConstants.MaxContactOffset, PlatformConstants.L_BlockMask);
+            }            
         }
         private bool UpdateWallInfo(RaycastHit2D hitWall) {
             if (hitWall) {
