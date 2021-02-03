@@ -9,8 +9,8 @@ namespace Stroy.Entities {
         private static bool toggleWallContact = true;
         private static bool toggleCellContact = true;
 
-        private SerializedProperty m_entityState;
         private SerializedProperty m_velocity;
+        private SerializedProperty m_face; 
 
         private SerializedProperty m_isGround;
         private SerializedProperty m_contactRadian;
@@ -26,8 +26,8 @@ namespace Stroy.Entities {
 
 
         private void OnEnable() {
-            m_entityState = serializedObject.FindProperty("State");
             m_velocity = serializedObject.FindProperty("m_velocity");
+            m_face = serializedObject.FindProperty("m_face");
 
             m_isGround = serializedObject.FindProperty("m_isGround");
             m_contactRadian = serializedObject.FindProperty("m_contactRadian");
@@ -47,9 +47,9 @@ namespace Stroy.Entities {
 
             serializedObject.Update();
 
-            EditorGUILayout.PropertyField(m_entityState);
             GUI.enabled = false;
             EditorGUILayout.PropertyField(m_velocity);
+            EditorGUILayout.PropertyField(m_face);
             GUI.enabled = true;
 
             // Ground Contact

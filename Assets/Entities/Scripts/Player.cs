@@ -27,20 +27,19 @@ namespace Stroy.Entities {
         public void OnDash(InputAction.CallbackContext context) {
             if (context.performed) {
                 if (m_isDash || m_leftDashCount <= 0) return;
-                StartCoroutine(Dash(m_inputAxis != Vector2.zero ? m_inputAxis.normalized : m_face * Vector2.right));
+                StartCoroutine(Dash(m_inputAxis != Vector2.zero ? m_inputAxis.normalized : m_character.Face * Vector2.right));
                 --m_leftDashCount;
             }
         }
         public void OnAttack(InputAction.CallbackContext context) {
-
+            switch (context.phase) {
+            case InputActionPhase.Performed:
+                break;
+            }
         }
         #endregion
 
         #region State
-        public void SetFace(float dir) {
-            m_face = dir;
-        }
-
         public void SetJump(float maxHeight, float minHeight) {
             m_jumpVelocity = Mathf.Sqrt(maxHeight * 2f * EntityConstants.Gravity);
             m_jumpPauseSacle = maxHeight / minHeight;
@@ -66,9 +65,7 @@ namespace Stroy.Entities {
         private const float DEFAULT_FRICTION = 1f;
 
         // Component
-        [HideInInspector] private Character m_platformer;
-        // State
-        private float m_face;
+        [HideInInspector] private Character m_character;
         // Run
         [SerializeField] private float m_topSpeed;
         [SerializeField] private float m_acc;
@@ -106,21 +103,31 @@ namespace Stroy.Entities {
         // Platform
         private ConveyorBelt m_conveyorBelt;
         private bool m_hasConveyorBelt;
+
+        // Combat
+        [SerializeField] private float m_invincibleTime;
+        [SerializeField] private Color m_invincibleColor;
         #endregion
 
         #region Component
         private void Awake() {
-            m_platformer = GetComponent<Character>();
+            m_character = GetComponent<Character>();
 
-            SetFace(1f);
             SetJump(m_maxJumpHeight, m_minJumpHeight);
             SetDash(m_dashDistance, m_dashSpeed);
 
             ResetDashCount();
             ResetJumpCount();
 
-            m_platformer.OnLanding += ResetJumpCount;
-            m_platformer.OnLanding += ResetDashCount;
+            m_character.OnLanding += ResetJumpCount;
+            m_character.OnLanding += ResetDashCount;
+        }
+        private void Start() {
+            m_character.Health.OnDamaged += (Health health, float damage) => {
+                health.SetInvincible(true);
+                StartCoroutine(InvincibleTimer(m_invincibleTime));
+                StartCoroutine(InvincibleEffect());
+            };
         }
 
         private void Update() {
@@ -134,7 +141,7 @@ namespace Stroy.Entities {
             {
                 if (m_isWallJump) {
                     m_elapsedWallJump += Time.deltaTime;
-                    if (m_platformer.IsGround || m_platformer.IsFall || (m_elapsedWallJump > MIN_WALL_JUMP && m_platformer.IsWall)) {
+                    if (m_character.IsGround || m_character.IsFall || (m_elapsedWallJump > MIN_WALL_JUMP && m_character.IsWall)) {
                         m_isWallJump = false;
                     } else {
                         return;
@@ -153,25 +160,27 @@ namespace Stroy.Entities {
                 }
 
                 bool wasSlide = m_isSlide;
-                if (m_platformer.IsWall && m_platformer.IsFall
-                    && (m_inputAxis.x < 0f && m_platformer.WallOnLeft || m_inputAxis.x > 0f && m_platformer.WallOnRight)) {
+                if (m_character.IsWall && m_character.IsFall
+                    && (m_inputAxis.x < 0f && m_character.WallOnLeft || m_inputAxis.x > 0f && m_character.WallOnRight)) {
                     m_isSlide = true;
                     if (!wasSlide) {
-                        m_platformer.Grab(m_platformer.ContactWall);
+                        m_character.Grab(m_character.ContactWall);
                     }
                     Slide(deltaTime);
                 } else if (wasSlide) {
                     m_isSlide = false;
-                    m_platformer.Release();
+                    m_character.Release();
                 }
-                if (m_inputAxis.x != 0f) SetFace(m_inputAxis.x);
                 Run(m_inputAxis.x, deltaTime);
+
+                GetComponentInChildren<SpriteRenderer>().flipX = m_character.Face < 0f;
             }
         }
-
+        
+        // Collision Events
         private void OnCollisionEnter2D(Collision2D collision) {
-            if (m_platformer.IsGround) {
-                Collider2D ground = m_platformer.ContactGround;
+            if (m_character.IsGround) {
+                Collider2D ground = m_character.ContactGround;
                 if (ground == collision.collider) {
                     if (ground.CompareTag(PlatformConstants.T_Belt)) {
                         m_conveyorBelt = ground.GetComponent<ConveyorBelt>();
@@ -190,11 +199,32 @@ namespace Stroy.Entities {
         #endregion
 
         #region Normal Mode
+        private IEnumerator InvincibleTimer(float time) {
+            yield return new WaitForSeconds(time);
+            if(m_character != null) {
+                m_character.Health.SetInvincible(false);
+            }
+        }
+        private IEnumerator InvincibleEffect() {
+            SpriteRenderer renderer = GetComponentInChildren<SpriteRenderer>();
+            Color original = renderer.color;
+            while (m_character.Health.Invincible) {
+                if(renderer.color == original) {
+                    renderer.color = m_invincibleColor;
+                } else {
+                    renderer.color = original;
+                }
+                yield return new WaitForSeconds(0.2f);
+            }
+            renderer.color = original;
+            yield break;
+        }
+
         private void OffNormalMode() {
             m_currentSpeed = 0f;
             BreakJump();
             m_isSlide = false;
-            m_platformer.Release();            
+            m_character.Release();            
         }
         #endregion
 
@@ -219,7 +249,7 @@ namespace Stroy.Entities {
                             m_currentSpeed = magnitude * inputDir;
                         } else {
                             // Damp exceed speed only on ground
-                            if (m_platformer.IsGround) {
+                            if (m_character.IsGround) {
                                 if (m_topSpeed < magnitude) {
                                     magnitude -= m_dec * deltaTime * m_firction;
                                 }
@@ -236,16 +266,16 @@ namespace Stroy.Entities {
                 }
             }
             if (m_hasConveyorBelt) m_currentSpeed += m_conveyorBelt.Speed;
-            m_platformer.Run(m_currentSpeed);
+            m_character.Run(m_currentSpeed);
         }
         #endregion
 
         #region Jump
         private bool Jump() {
-            if (m_platformer.IsGround) { // Ground jump
-                m_platformer.Jump(m_jumpVelocity);
+            if (m_character.IsGround) { // Ground jump
+                m_character.Jump(m_jumpVelocity);
             } else if (m_leftMorerJumpCount > 0) { // Morer jump
-                m_platformer.Jump(m_jumpVelocity);
+                m_character.Jump(m_jumpVelocity);
                 --m_leftMorerJumpCount;
             } else { // Jump fail 
                 return false;
@@ -255,34 +285,32 @@ namespace Stroy.Entities {
             return true;
         }
         private void BreakJump() {
-            m_platformer.BreakJump(m_jumpPauseSacle);
+            m_character.BreakJump(m_jumpPauseSacle);
             m_autoJump = false;
         }
         #endregion
 
         #region Slide
         private void Slide(float deltaTime) {
-            float speed = m_platformer.Velocity.y - EntityConstants.Gravity * deltaTime;
+            float speed = m_character.Velocity.y - EntityConstants.Gravity * deltaTime;
             if(speed < -m_slideLimit) {
                 speed = -m_slideLimit;
             }
-            m_platformer.Climb(speed);
+            m_character.Climb(speed);
         }
         #endregion
 
 
-
-
         #region Wall Jump
         private bool WallJump() {
-            if (!m_platformer.IsGround && m_platformer.IsWall) {
+            if (!m_character.IsGround && m_character.IsWall) {
                 OffNormalMode();
 
-                m_platformer.Jump(m_wallJumpVelocity.y);
-                m_currentSpeed = m_wallJumpVelocity.x * (m_platformer.WallOnLeft ? 1f : -1f);
-                m_platformer.Run(m_currentSpeed);
+                m_character.Jump(m_wallJumpVelocity.y);
+                m_currentSpeed = m_wallJumpVelocity.x * (m_character.WallOnLeft ? 1f : -1f);
+                m_character.Run(m_currentSpeed);
 
-                SetFace(m_currentSpeed < 0f ? -1f : 1f);
+                //SetFace(m_currentSpeed < 0f ? -1f : 1f);
 
                 m_isWallJump = true;
                 m_elapsedWallJump = 0f;
@@ -303,22 +331,22 @@ namespace Stroy.Entities {
             float elapsedTime = 0f;
             m_dashTime = m_dashDistance / m_dashSpeed;
 
-            if (m_platformer.IsGround) {
+            if (m_character.IsGround) {
                 while (elapsedTime < m_dashTime) {
                     elapsedTime += Time.deltaTime;
-                    m_platformer.Run(velocity.x);
+                    m_character.Run(velocity.x);
                     yield return null;
                 }
                 ResetDashCount();
             } else {
-                m_platformer.enabled = false;
-                EntityController controller = m_platformer.Controller;
+                m_character.enabled = false;
+                EntityController controller = m_character.Controller;
                 while (elapsedTime < m_dashTime) {
                     elapsedTime += Time.deltaTime;
                     controller.SetVelocity(velocity);
                     yield return null;
                 }
-                m_platformer.enabled = true;
+                m_character.enabled = true;
                 controller.SetVelocity(Vector2.zero);
             }
             

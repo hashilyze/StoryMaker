@@ -14,17 +14,17 @@
                     "interactions": ""
                 },
                 {
-                    "name": "Jump",
+                    "name": "Attack",
                     "type": "Button",
-                    "id": "b2c7edb1-aafc-4c69-989c-bc30271b6701",
+                    "id": "dadffe24-6571-427c-95d7-feffe65931ae",
                     "expectedControlType": "Button",
                     "processors": "",
                     "interactions": ""
                 },
                 {
-                    "name": "Attack",
+                    "name": "Jump",
                     "type": "Button",
-                    "id": "dadffe24-6571-427c-95d7-feffe65931ae",
+                    "id": "b2c7edb1-aafc-4c69-989c-bc30271b6701",
                     "expectedControlType": "Button",
                     "processors": "",
                     "interactions": ""
@@ -97,22 +97,11 @@
                 {
                     "name": "",
                     "id": "afdd8487-8dbe-429a-9923-39f543e06f1d",
-                    "path": "<Keyboard>/j",
-                    "interactions": "",
-                    "processors": "",
-                    "groups": "KeyboardMouse",
-                    "action": "Jump",
-                    "isComposite": false,
-                    "isPartOfComposite": false
-                },
-                {
-                    "name": "",
-                    "id": "ecdb1d64-8b6b-4300-a1f5-c4215e2614dc",
                     "path": "<Keyboard>/k",
                     "interactions": "",
                     "processors": "",
                     "groups": "KeyboardMouse",
-                    "action": "Attack",
+                    "action": "Jump",
                     "isComposite": false,
                     "isPartOfComposite": false
                 },
@@ -124,6 +113,17 @@
                     "processors": "",
                     "groups": "KeyboardMouse",
                     "action": "Dash",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
+                    "id": "ecdb1d64-8b6b-4300-a1f5-c4215e2614dc",
+                    "path": "<Keyboard>/j",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "KeyboardMouse",
+                    "action": "Attack",
                     "isComposite": false,
                     "isPartOfComposite": false
                 }

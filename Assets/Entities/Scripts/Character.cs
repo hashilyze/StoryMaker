@@ -2,9 +2,17 @@
 using Stroy.Platforms;
 
 namespace Stroy.Entities {
-    public class Character : Entity {
+    [RequireComponent(typeof(EntityController), typeof(Health))]
+    public class Character : MonoBehaviour {
         #region Public
+        // Component
+        public EntityController Controller => m_controller;
+        public Health Health => m_health;
+        public SpriteRenderer SpriteRenderer => m_spriteRenderer;
+        public Animator Animator => m_animator;
+
         // State
+        public float Face => m_face;
         public Vector2 Velocity => m_velocity;
         public bool IsFall => !m_isGround && m_velocity.y < 0f;
         // Contact ground info
@@ -31,24 +39,26 @@ namespace Stroy.Entities {
             if (!active) ResetWallInfo();
         }
         // Action Command
-        public void Run(float velocity) { m_runSpeed = velocity; }
+        public void Run(float velocity) {
+            m_runSpeed = velocity;
+        }
         public void Jump(float velocity) {
-            m_velocity = Controller.Velocity;
+            m_velocity = m_controller.Velocity;
             m_velocity.y = velocity;
-            Controller.SetVelocity(m_velocity);
+            m_controller.SetVelocity(m_velocity);
 
             if (velocity >= 0f) { // Jump
-                Controller.SetGravityScale(EntityConstants.DefaultGravityScale);
+                m_controller.SetGravityScale(EntityConstants.DefaultGravityScale);
                 m_isJump = true;
                 m_elapsedJump = 0f;
             } else { // Instants fall
-                Controller.SetGravityScale(EntityConstants.FallGravityScale);
+                m_controller.SetGravityScale(EntityConstants.FallGravityScale);
                 m_isJump = false;
             }
         }
         public bool BreakJump(float scale) {
             if (m_isJump) {
-                Controller.SetGravityScale(scale);
+                m_controller.SetGravityScale(scale);
                 m_isJump = false;
                 return true;
             }
@@ -56,30 +66,30 @@ namespace Stroy.Entities {
         }
         public void Grab(Collider2D wall) {
             if (wall.gameObject.layer == PlatformConstants.L_DynamicBlock) {
-                Controller.SetFollower(wall.attachedRigidbody);
+                m_controller.SetFollower(wall.attachedRigidbody);
             }
 
             m_isClimb = true;
             m_climbWall = wall;
-            Controller.SetUseGravity(false);
+            m_controller.SetUseGravity(false);
         }
         public void Release() {
             if (!m_isClimb) return;
 
             if(m_climbWall.gameObject.layer == PlatformConstants.L_DynamicBlock) {
-                Controller.SetFollower(null);
+                m_controller.SetFollower(null);
             }
 
             m_isClimb = false;
             m_climbWall = null;
-            Controller.SetUseGravity(true);
+            m_controller.SetUseGravity(true);
         }
         public void Climb(float velocity) {
             if (!m_isClimb) return;
 
-            m_velocity = Controller.Velocity;
+            m_velocity = m_controller.Velocity;
             m_velocity.y = velocity;
-            Controller.SetVelocity(m_velocity);
+            m_controller.SetVelocity(m_velocity);
         }
         #endregion
 
@@ -91,8 +101,16 @@ namespace Stroy.Entities {
         private static readonly Vector2 BL_OFFSET = new Vector2(-0.5f, -0.5f);
         private static readonly Vector2 TR_OFFSET = new Vector2(0.5f, 0.5f);
         private static readonly Vector2 TL_OFFSET = new Vector2(-0.5f, 0.5f);
-        // State
+        
+        // Component
+        private EntityController m_controller;
+        private Health m_health;
+        private SpriteRenderer m_spriteRenderer;
+        private Animator m_animator;
+
+        // Transform State
         [SerializeField] private Vector2 m_velocity;
+        [SerializeField] private float m_face = 1f;
         [HideInInspector] private Vector2 m_size;
         [HideInInspector] private Vector2 m_lastVelocity;
         [HideInInspector] private Vector2 m_lastPos;
@@ -104,6 +122,7 @@ namespace Stroy.Entities {
         // Climb State
         private bool m_isClimb;
         private Collider2D m_climbWall;
+
         // Contact ground info
         [SerializeField] private bool m_isGround;
         [SerializeField] private float m_contactRadian;
@@ -121,7 +140,7 @@ namespace Stroy.Entities {
         // Life cycle
         private void OnDisable() {
             m_velocity = Vector2.zero;
-            Controller.SetGravityScale(EntityConstants.DefaultGravityScale);
+            m_controller.SetGravityScale(EntityConstants.DefaultGravityScale);
             // Reset Actions
             Run(0f);
             BreakJump(1f);
@@ -131,26 +150,29 @@ namespace Stroy.Entities {
             ResetWallInfo();
             ResetCellInfo();
         }
-        protected override void Awake() {
-            base.Awake();
+        private void Awake() {
+            // Setup Controller
+            m_controller = GetComponent<EntityController>();
+            m_controller.OnResized += CacheSize;    // Cache size of entity
+            if (m_controller.Size != Vector2.zero) CacheSize(m_controller);
 
-            // Cache size of entity
-            Controller.OnResized += CacheSize;
-            if (Controller.Size != Vector2.zero) {
-                CacheSize(Controller);
-            }
+            m_health = GetComponent<Health>();
+            m_controller.OnFrozen += x => m_health.TakeDamage(Mathf.Infinity);
+
+            m_spriteRenderer = GetComponentInChildren<SpriteRenderer>();
+            m_animator = GetComponent<Animator>();
         }
-
 
         private void Update() {
             float deltaTime = Time.deltaTime;
             HandleMovement(deltaTime);
+            if(m_velocity.x != 0f) m_face = m_velocity.x < 0f ? -1f : 1f;
         }
 
         private void HandleMovement(float deltaTime) {
-            Vector2 origin = Controller.Position;
+            Vector2 origin = m_controller.Position;
             bool wasGround = m_isGround;
-            m_velocity = Controller.Velocity;
+            m_velocity = m_controller.Velocity;
 
             if (m_isJump) m_elapsedJump += deltaTime;
 
@@ -159,13 +181,11 @@ namespace Stroy.Entities {
             // Recovery slope bouncing
             {
                 if (!m_isGround && wasGround && m_lastPos != origin && !m_isJump && !m_isClimb) {
-                    Debug.LogWarning($"name: {gameObject.name}");
-                    //Debug.Break();
                     RaycastHit2D hitBlock = Physics2D.BoxCast(origin, m_size, 0f, Vector2.down, Mathf.Infinity, 0x01 << PlatformConstants.L_StaticBlock);
                     if (UpdateGroundInfo(hitBlock)) {
                         if (m_velocity.y > 0f && hitBlock.distance <= origin.y - m_lastPos.y + EntityConstants.MaxContactOffset
                             || m_velocity.y <= 0f && hitBlock.distance <= Mathf.Tan(m_contactRadian) * (m_lastPos.x - origin.x) + EntityConstants.MaxContactOffset) {
-                            Controller.SetPosition(origin + Vector2.down * (hitBlock.distance - EntityConstants.MinContactOffset));
+                            m_controller.SetPosition(origin + Vector2.down * (hitBlock.distance - EntityConstants.MinContactOffset));
                             // End HandleMovement
                             m_lastVelocity = m_velocity;
                             m_lastPos = origin;
@@ -191,7 +211,7 @@ namespace Stroy.Entities {
                             m_velocity = Vector2.zero;
                         }
                     } else { // Landing
-                        Controller.SetGravityScale(EntityConstants.DefaultGravityScale);
+                        m_controller.SetGravityScale(EntityConstants.DefaultGravityScale);
                         m_velocity = Vector2.zero;
                         OnLanding?.Invoke();
                     }
@@ -201,7 +221,7 @@ namespace Stroy.Entities {
 
                     // Falling
                     if (m_velocity.y < 0f && (m_lastVelocity.y >= 0f || wasGround)) {
-                        Controller.SetGravityScale(EntityConstants.FallGravityScale);
+                        m_controller.SetGravityScale(EntityConstants.FallGravityScale);
                         m_isJump = false;
                         OnFalling?.Invoke();
                     }
@@ -209,7 +229,7 @@ namespace Stroy.Entities {
                 }
             }
 
-            Controller.SetVelocity(m_velocity);
+            m_controller.SetVelocity(m_velocity);
 
             m_lastVelocity = m_velocity;
             m_lastPos = origin;
@@ -225,7 +245,7 @@ namespace Stroy.Entities {
         private void CheckGround(Vector2 origin) {
             if ((!m_isClimb || m_velocity.y <= 0f)
                 && (!m_isJump || m_elapsedJump > MIN_JUMP_TIME)
-                && (m_isGround || m_velocity.y < (m_velocity.x < 0f ? -m_velocity.x : m_velocity.x) || Controller.ContactDynamics)) {
+                && (m_isGround || m_velocity.y < (m_velocity.x < 0f ? -m_velocity.x : m_velocity.x) || m_controller.ContactDynamics)) {
                 // Check uphill
                 if (m_runSpeed < 0f) { // Move left
                     if (UpdateGroundInfo(Physics2D.Raycast(origin + m_size * BL_OFFSET, L_SLOPE_DIR, EntityConstants.MaxContactOffset, PlatformConstants.L_BlockMask))) return;
@@ -247,9 +267,9 @@ namespace Stroy.Entities {
                     m_isJump = false;
 
                     if (hitGround.collider.gameObject.layer == PlatformConstants.L_DynamicBlock) {
-                        Controller.SetFollower(hitGround.rigidbody);
+                        m_controller.SetFollower(hitGround.rigidbody);
                     } else {
-                        Controller.SetFollower(null);
+                        m_controller.SetFollower(null);
                     }
                     return true;
                 }
@@ -260,7 +280,7 @@ namespace Stroy.Entities {
             m_isGround = false;
             m_contactRadian = 0f;
             m_contactGround = null;
-            if(!m_isClimb) Controller.SetFollower(null);
+            if(!m_isClimb) m_controller.SetFollower(null);
         }
 
         private void CheckCell(Vector2 origin) {
@@ -282,7 +302,7 @@ namespace Stroy.Entities {
         }
 
         private void CheckWall(Vector2 origin) {
-            if (m_isWall || m_runSpeed != 0f || Controller.ContactDynamics) {
+            if (m_isWall || m_runSpeed != 0f || m_controller.ContactDynamics) {
                 float sign = m_runSpeed < 0f ? -1f : 1f;
                 if (m_runSpeed * m_contactRadian > 0f) {
                     if (UpdateWallInfo(WallCast(origin, sign, false))) return;

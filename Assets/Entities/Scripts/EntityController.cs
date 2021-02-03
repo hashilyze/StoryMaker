@@ -2,6 +2,7 @@
 using Stroy.Platforms;
 
 namespace Stroy.Entities {
+    /// <summary>Transform for entity</summary>
     [RequireComponent(typeof(BoxCollider2D), typeof(Rigidbody2D))]
     public sealed class EntityController : MonoBehaviour {
         #region Public
@@ -12,6 +13,7 @@ namespace Stroy.Entities {
         public Vector2 Size { get => m_size; set => SetSize(value); }
         public Vector2 Velocity { get => m_velocity; set => SetVelocity(value); }
         public Vector2 Position => m_rigidbody.position;
+        public Vector2 Center => m_body.bounds.center;
         public bool UseGravity { get => m_useGravity; set => SetUseGravity(value); }
         public float GravityScale { get => m_gravityScale; set => SetGravityScale(value); }
         // Contact Dynamics
@@ -39,8 +41,7 @@ namespace Stroy.Entities {
             if (!safe) m_executedUnsafe = true;
             OnResized?.Invoke(this);
         }
-        [ContextMenu("Recovery")]
-        public void Recovery() { m_executedUnsafe = true; }
+        [ContextMenu("Recovery")] public void Recovery() { m_executedUnsafe = true; }
         public void SetUseGravity(bool active) { m_useGravity = active; }
         public void SetGravityScale(float scale) { m_gravityScale = scale; }
         // Follow platform
@@ -85,11 +86,14 @@ namespace Stroy.Entities {
             m_executedSetPos = false;
         }
         private void Awake() {
+            // Setup rigidbody
+            m_rigidbody = GetComponent<Rigidbody2D>();
+            m_rigidbody.isKinematic = true;
+            m_rigidbody.useFullKinematicContacts = true;
+            m_rigidbody.constraints = RigidbodyConstraints2D.FreezeRotation;
             // Setup body
             m_body = GetComponent<BoxCollider2D>();
             SetSize(m_body.size);
-            // Setup rigidbody
-            m_rigidbody = GetComponent<Rigidbody2D>();
         }
 
         // Physics Update
@@ -104,7 +108,7 @@ namespace Stroy.Entities {
             // Move by velocity
             {
                 float deltaTime = Time.fixedDeltaTime;
-                // Initialize properties
+                // Initialize propertie
                 Vector2 destination = m_rigidbody.position;
 
                 if (m_useGravity) {
@@ -117,9 +121,16 @@ namespace Stroy.Entities {
 
                 // Compute destination
                 ReactBlock(destination, out Vector2 preDist, out Vector2 postDist, deltaTime);
-                destination += preDist;
-                ApplyVelocity(ref destination, deltaTime);
+                if (preDist != MoveToward(ref destination, preDist, deltaTime)) {
+                    OnFrozen?.Invoke(this);
+                }
+                m_velocity = MoveToward(ref destination, m_velocity * deltaTime, deltaTime) / deltaTime;
                 destination += postDist;
+
+                //destination += preDist;
+                //ApplyVelocity(ref destination, deltaTime);
+                //destination += postDist;
+
                 // Apply destination
                 m_rigidbody.MovePosition(destination);
             }
@@ -256,6 +267,22 @@ namespace Stroy.Entities {
             m_velocity = (destination - befPos) / deltaTime;
         }
 
+        private Vector2 MoveToward(ref Vector2 destination, Vector2 distance, float deltaTime) {
+            if (distance == Vector2.zero) return distance;
+
+            Vector2 befPos = destination;
+            if (distance.y > 0f) {
+                if (distance.y != 0f) AddDistance(ref destination, distance.y, Vector2.up, deltaTime);
+                if (distance.x != 0f) AddDistance(ref destination, distance.x, Vector2.right, deltaTime);
+            } else {
+                if (distance.x != 0f) AddDistance(ref destination, distance.x, Vector2.right, deltaTime);
+                if (distance.y != 0f) AddDistance(ref destination, distance.y, Vector2.up, deltaTime);
+            }
+            return destination - befPos;
+        }
+
+
+
         /// <summary>Add distance to lastest destination</summary>
         private void AddDistance(ref Vector2 destination, float distance, Vector2 axis, float deltaTime) {
             float clampedDist = (distance < 0 ? -distance : distance) + EntityConstants.MinContactOffset;
@@ -297,12 +324,15 @@ namespace Stroy.Entities {
                 if (m_rigidbody == null) m_rigidbody = GetComponent<Rigidbody2D>();
             }
 
-            editor_center = m_rigidbody.position;
-            editor_size = m_body.size;
+
+            
+            editor_center = m_body.bounds.center;
+            editor_size = m_body.bounds.size;
             editor_tr = editor_size * new Vector2(0.5f, 0.5f);
             editor_br = editor_size * new Vector2(0.5f, -0.5f);
             editor_tl = editor_size * new Vector2(-0.5f, 0.5f);
             editor_bl = editor_size * new Vector2(-0.5f, -0.5f);
+            
 
             // Visualize body
             //DrawEdge(0f, Color.green);
