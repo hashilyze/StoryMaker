@@ -5,8 +5,10 @@ using UnityEngine.InputSystem;
 using Stroy.Platforms;
 
 namespace Stroy.Entities {
-    [RequireComponent(typeof(Character), typeof(PlayerInput))]
-    public class Player : MonoBehaviour {
+    [RequireComponent(typeof(Character))]
+    public class Player : MonoBehaviour, MyInputAction.IPlayerActions {
+        public Transform target;
+
         #region Input Binding
         public void OnMove(InputAction.CallbackContext context) {
             m_inputAxis = context.ReadValue<Vector2>();
@@ -14,14 +16,18 @@ namespace Stroy.Entities {
         public void OnJump(InputAction.CallbackContext context) {
             switch (context.phase) {
             case InputActionPhase.Performed:
-                if (WallJump() == false && Jump() == false) {
+                if (WallJump()) return;
+                else if (Jump()) return;
+                else {
                     m_autoJump = true;
-                    m_elapsedAutoJump = 0f;
+                    StartCoroutine(StopAutoJump());
                 }
-                break;
+                return;
             case InputActionPhase.Canceled:
+                if (m_isWallJump) return;
+
                 BreakJump();
-                break;
+                return;
             }
         }
         public void OnDash(InputAction.CallbackContext context) {
@@ -34,6 +40,14 @@ namespace Stroy.Entities {
         public void OnAttack(InputAction.CallbackContext context) {
             switch (context.phase) {
             case InputActionPhase.Performed:
+                int colliderNum = m_attackArea.OverlapCollider(ATTACK_FILTER, m_bufferCollider);
+                for(int n = 0; n != colliderNum; ++n) {
+                    Collider2D enemy = m_bufferCollider[n];
+                    Debug.Log(enemy.name);
+                    if(enemy.TryGetComponent(out Health health)) {
+                        health.TakeDamage(m_damage);
+                    }
+                }
                 break;
             }
         }
@@ -60,51 +74,55 @@ namespace Stroy.Entities {
         #endregion
 
         #region Variable
-        private const float AUTO_JUMP_LIMIT = 0.1f;
-        private const float MIN_WALL_JUMP = 0.1f;
         private const float DEFAULT_FRICTION = 1f;
+        private const float AUTO_JUMP_LIMIT = 3f;        
+        private static readonly WaitForSeconds AUTO_JUMP_TIMER = new WaitForSeconds(AUTO_JUMP_LIMIT);
+        private const float MIN_WALL_JUMP = 0.1f;
+        private const int COLLIDER_BUFFER_SIZE = 8;
+        private readonly Collider2D[] m_bufferCollider = new Collider2D[COLLIDER_BUFFER_SIZE];
+        private static readonly ContactFilter2D ATTACK_FILTER = new ContactFilter2D() { useLayerMask = true, layerMask = 0x01 << EntityConstants.L_Enemy };
 
         // Component
         [HideInInspector] private Character m_character;
-        // Run
+        [Header("Run")]
         [SerializeField] private float m_topSpeed;
         [SerializeField] private float m_acc;
         [SerializeField] private float m_dec;
         [SerializeField] private float m_turnDec;
         [SerializeField] private float m_firction = DEFAULT_FRICTION;
         private float m_currentSpeed;
-        // Jump
+        [Header("Jump")]
         [SerializeField] private float m_maxJumpHeight;
         [SerializeField] private float m_minJumpHeight;
         [HideInInspector] private float m_jumpVelocity;
         [HideInInspector] private float m_jumpPauseSacle;
         [SerializeField] private int m_maxMorerJumpCount;
         private int m_leftMorerJumpCount;
-        // Auto jump
         private bool m_autoJump;
-        private float m_elapsedAutoJump;
-        // Slide
+        [Header("Slide")]
         [SerializeField] private float m_slideLimit;
         private bool m_isSlide;
-
-        // Wall Jump
+        [Header("WallJump")]
         [SerializeField] private Vector2 m_wallJumpVelocity;
         private bool m_isWallJump;
         private float m_elapsedWallJump;
-        // Dash
+        [Header("Dash")]
         [SerializeField] private float m_dashSpeed;
         [SerializeField] private float m_dashDistance;
         [SerializeField] private int m_maxDashCount;
         private int m_leftDashCount;
         [HideInInspector] private float m_dashTime;
         private bool m_isDash;
+        [Header("Attack")]
+        [SerializeField] private float m_damage;
+        [SerializeField] private Collider2D m_attackArea;
         // Input
         private Vector2 m_inputAxis;
         // Platform
         private ConveyorBelt m_conveyorBelt;
         private bool m_hasConveyorBelt;
 
-        // Combat
+        [Header("Combat")]
         [SerializeField] private float m_invincibleTime;
         [SerializeField] private Color m_invincibleColor;
         #endregion
@@ -119,8 +137,11 @@ namespace Stroy.Entities {
             ResetDashCount();
             ResetJumpCount();
 
+            m_character.OnLanding += TryAutoJump;
             m_character.OnLanding += ResetJumpCount;
             m_character.OnLanding += ResetDashCount;
+
+            Input.InputManager.Bind(this);
         }
         private void Start() {
             m_character.Health.OnDamaged += (Health health, float damage) => {
@@ -151,29 +172,25 @@ namespace Stroy.Entities {
             // Normal routine: Run-Jump-Slide
             {
                 float deltaTime = Time.deltaTime;
-                if (m_autoJump) {
-                    m_elapsedAutoJump += deltaTime;
-                    // Auto jump time over or Success
-                    if (m_elapsedAutoJump > AUTO_JUMP_LIMIT || Jump()) {
-                        m_autoJump = false;
-                    }
-                }
 
                 bool wasSlide = m_isSlide;
-                if (m_character.IsWall && m_character.IsFall
+                if (m_character.IsFall && m_character.IsWall
                     && (m_inputAxis.x < 0f && m_character.WallOnLeft || m_inputAxis.x > 0f && m_character.WallOnRight)) {
                     m_isSlide = true;
                     if (!wasSlide) {
-                        m_character.Grab(m_character.ContactWall);
+                        m_character.Grab(m_character.ContactWall, true);
                     }
-                    Slide(deltaTime);
+                    Slide();
                 } else if (wasSlide) {
                     m_isSlide = false;
                     m_character.Release();
                 }
                 Run(m_inputAxis.x, deltaTime);
 
-                GetComponentInChildren<SpriteRenderer>().flipX = m_character.Face < 0f;
+                m_character.SpriteRenderer.flipX = m_character.Face < 0f;
+                m_character.Animator.SetBool("IsGround", m_character.IsGround);
+                m_character.Animator.SetFloat("VelocityX", Mathf.Abs(m_character.Velocity.x));
+                m_character.Animator.SetFloat("VelocityY", m_character.Velocity.y);
             }
         }
         
@@ -288,18 +305,25 @@ namespace Stroy.Entities {
             m_character.BreakJump(m_jumpPauseSacle);
             m_autoJump = false;
         }
-        #endregion
-
-        #region Slide
-        private void Slide(float deltaTime) {
-            float speed = m_character.Velocity.y - EntityConstants.Gravity * deltaTime;
-            if(speed < -m_slideLimit) {
-                speed = -m_slideLimit;
+        private void TryAutoJump() {
+            if (m_autoJump) {
+                Jump();
+                m_autoJump = false;
             }
-            m_character.Climb(speed);
+        }
+        private IEnumerator StopAutoJump() {
+            yield return AUTO_JUMP_TIMER;
+            TryAutoJump();
         }
         #endregion
 
+        #region Slide
+        private void Slide() {
+            if(m_character.Velocity.y < -m_slideLimit) {
+                m_character.Climb(-m_slideLimit);
+            }
+        }
+        #endregion
 
         #region Wall Jump
         private bool WallJump() {
@@ -307,10 +331,14 @@ namespace Stroy.Entities {
                 OffNormalMode();
 
                 m_character.Jump(m_wallJumpVelocity.y);
-                m_currentSpeed = m_wallJumpVelocity.x * (m_character.WallOnLeft ? 1f : -1f);
+                if (m_character.WallOnLeft) {
+                    m_currentSpeed = m_wallJumpVelocity.x;
+                    m_character.SpriteRenderer.flipX = false;
+                } else {
+                    m_currentSpeed = -m_wallJumpVelocity.x;
+                    m_character.SpriteRenderer.flipX = true;
+                }
                 m_character.Run(m_currentSpeed);
-
-                //SetFace(m_currentSpeed < 0f ? -1f : 1f);
 
                 m_isWallJump = true;
                 m_elapsedWallJump = 0f;

@@ -64,14 +64,14 @@ namespace Stroy.Entities {
             }
             return false;
         }
-        public void Grab(Collider2D wall) {
+        public void Grab(Collider2D wall, bool useGravity) {
             if (wall.gameObject.layer == PlatformConstants.L_DynamicBlock) {
                 m_controller.SetFollower(wall.attachedRigidbody);
             }
 
             m_isClimb = true;
             m_climbWall = wall;
-            m_controller.SetUseGravity(false);
+            m_controller.SetUseGravity(useGravity);
         }
         public void Release() {
             if (!m_isClimb) return;
@@ -160,7 +160,7 @@ namespace Stroy.Entities {
             m_controller.OnFrozen += x => m_health.TakeDamage(Mathf.Infinity);
 
             m_spriteRenderer = GetComponentInChildren<SpriteRenderer>();
-            m_animator = GetComponent<Animator>();
+            m_animator = GetComponentInChildren<Animator>();
         }
 
         private void Update() {

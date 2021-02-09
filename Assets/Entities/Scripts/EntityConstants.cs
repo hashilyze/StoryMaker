@@ -12,9 +12,9 @@ namespace Stroy.Entities {
         public const string T_Player = "Player";
         public const string T_Enemy = "Enemy";
 
-        public static readonly int L_Player = LayerMask.NameToLayer("Player");        
-        public static readonly int L_Friend = LayerMask.NameToLayer("Friend");
-        public static readonly int L_Enemy = LayerMask.NameToLayer("Enemy");
+        public static readonly int L_Player = 10;
+        public static readonly int L_Friend = 11;
+        public static readonly int L_Enemy = 12;
 
         public static readonly int L_EntityMask = 0x01 << L_Player | 0x01 << L_Friend | 0x01 << L_Enemy;
         #endregion
