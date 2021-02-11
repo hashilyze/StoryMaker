@@ -8,6 +8,7 @@ namespace Stroy.Platforms {
         public Rigidbody2D Rigidbody => m_rigidbody;
 
         public Vector2 Velocity { get => m_velocity; set => m_velocity = value; }
+        
 
         public Track JointedTrack { get => m_track; set => Joint(value); }
         public float FollowSpeed { get => m_followSpeed; set => m_followSpeed = value; }
@@ -68,27 +69,23 @@ namespace Stroy.Platforms {
         }
 
         private void FixedUpdate() {
-            if (m_isFollow) {
-                FollowMove();
-            } else {
-                FreeMove();
-            }
-        }
-
-        private void FreeMove() {
-            m_rigidbody.velocity = m_velocity;
-        }
-
-        private void FollowMove() {
             float deltaTime = Time.fixedDeltaTime;
+            if (m_isFollow) FollowMove(deltaTime);
+            else FreeMove(deltaTime);
+        }
 
+        private void FreeMove(float deltaTime) {
+            m_rigidbody.position = m_velocity * deltaTime;
+        }
+        private void FollowMove(float deltaTime) {
             Vector2 current = m_rigidbody.position;
             if (current == m_destPos) {
                 UpdateNode();
             }
 
             Vector2 destination = Vector2.MoveTowards(current, m_destPos, m_followSpeed * deltaTime);
-            m_velocity = m_rigidbody.velocity = (destination - current) / deltaTime;
+            m_velocity = (destination - current) / deltaTime;
+            m_rigidbody.position = destination;
         }
         private void UpdateNode() {
             if (m_track.IsCycle) {

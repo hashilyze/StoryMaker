@@ -4,6 +4,7 @@ using UnityEngine;
 
 namespace Stroy.Entities {
     public abstract class CombatHandler : MonoBehaviour {
-        public abstract void HandleCombat(float deltaTime);
+        public abstract void Combat(Character character);
+        public abstract bool Monitor(Character character);
     }
 }

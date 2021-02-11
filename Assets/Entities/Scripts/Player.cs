@@ -118,9 +118,6 @@ namespace Stroy.Entities {
         [SerializeField] private Collider2D m_attackArea;
         // Input
         private Vector2 m_inputAxis;
-        // Platform
-        private ConveyorBelt m_conveyorBelt;
-        private bool m_hasConveyorBelt;
 
         [Header("Combat")]
         [SerializeField] private float m_invincibleTime;
@@ -187,7 +184,6 @@ namespace Stroy.Entities {
                 }
                 Run(m_inputAxis.x, deltaTime);
 
-                m_character.SpriteRenderer.flipX = m_character.Face < 0f;
                 m_character.Animator.SetBool("IsGround", m_character.IsGround);
                 m_character.Animator.SetFloat("VelocityX", Mathf.Abs(m_character.Velocity.x));
                 m_character.Animator.SetFloat("VelocityY", m_character.Velocity.y);
@@ -195,24 +191,6 @@ namespace Stroy.Entities {
         }
         
         // Collision Events
-        private void OnCollisionEnter2D(Collision2D collision) {
-            if (m_character.IsGround) {
-                Collider2D ground = m_character.ContactGround;
-                if (ground == collision.collider) {
-                    if (ground.CompareTag(PlatformConstants.T_Belt)) {
-                        m_conveyorBelt = ground.GetComponent<ConveyorBelt>();
-                        m_currentSpeed += m_conveyorBelt.Speed;
-                        m_hasConveyorBelt = true;
-                    }
-                }
-            }
-        }
-        private void OnCollisionExit2D(Collision2D collision) {
-            if (m_hasConveyorBelt && m_conveyorBelt.gameObject == collision.gameObject) {
-                m_conveyorBelt = null;
-                m_hasConveyorBelt = false;
-            }
-        }
         #endregion
 
         #region Normal Mode
@@ -223,7 +201,7 @@ namespace Stroy.Entities {
             }
         }
         private IEnumerator InvincibleEffect() {
-            SpriteRenderer renderer = GetComponentInChildren<SpriteRenderer>();
+            SpriteRenderer renderer = m_character.SpriteRenderer;
             Color original = renderer.color;
             while (m_character.Health.Invincible) {
                 if(renderer.color == original) {
@@ -248,7 +226,6 @@ namespace Stroy.Entities {
         #region Run
         /// <summary>Run or AirControl with acceleration</summary>
         private void Run(float inputDir, float deltaTime) {
-            if (m_hasConveyorBelt) m_currentSpeed -= m_conveyorBelt.Speed;
             // Run speed update
             {
                 float magnitude = m_currentSpeed < 0f ? -m_currentSpeed : m_currentSpeed;
@@ -282,7 +259,6 @@ namespace Stroy.Entities {
                     }
                 }
             }
-            if (m_hasConveyorBelt) m_currentSpeed += m_conveyorBelt.Speed;
             m_character.Run(m_currentSpeed);
         }
         #endregion
@@ -333,10 +309,8 @@ namespace Stroy.Entities {
                 m_character.Jump(m_wallJumpVelocity.y);
                 if (m_character.WallOnLeft) {
                     m_currentSpeed = m_wallJumpVelocity.x;
-                    m_character.SpriteRenderer.flipX = false;
                 } else {
                     m_currentSpeed = -m_wallJumpVelocity.x;
-                    m_character.SpriteRenderer.flipX = true;
                 }
                 m_character.Run(m_currentSpeed);
 
@@ -368,14 +342,14 @@ namespace Stroy.Entities {
                 ResetDashCount();
             } else {
                 m_character.enabled = false;
-                EntityController controller = m_character.Controller;
+                EntityBody body = m_character.Body;
                 while (elapsedTime < m_dashTime) {
                     elapsedTime += Time.deltaTime;
-                    controller.SetVelocity(velocity);
+                    body.SetVelocity(velocity);
                     yield return null;
                 }
                 m_character.enabled = true;
-                controller.SetVelocity(Vector2.zero);
+                body.SetVelocity(Vector2.zero);
             }
             
             m_isDash = false;

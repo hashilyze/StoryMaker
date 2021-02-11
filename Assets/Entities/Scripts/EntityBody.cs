@@ -2,28 +2,27 @@
 using Stroy.Platforms;
 
 namespace Stroy.Entities {
-    /// <summary>Transform for entity</summary>
     [RequireComponent(typeof(BoxCollider2D), typeof(Rigidbody2D))]
-    public sealed class EntityController : MonoBehaviour {
+    public sealed class EntityBody : MonoBehaviour {
         #region Public
         // Component
         public Rigidbody2D Rigidbody => m_rigidbody;
-        public BoxCollider2D Body => m_body;
+        public BoxCollider2D Collider => m_collider;
         // Entity State
-        public Vector2 Size { get => m_size; set => SetSize(value); }
+        public Vector2 Size => m_size;
         public Vector2 Velocity { get => m_velocity; set => SetVelocity(value); }
         public Vector2 Position => m_rigidbody.position;
-        public Vector2 Center => m_body.bounds.center;
+        public Vector2 Center => m_collider.bounds.center;
         public bool UseGravity { get => m_useGravity; set => SetUseGravity(value); }
         public float GravityScale { get => m_gravityScale; set => SetGravityScale(value); }
         // Contact Dynamics
         public bool ContactDynamics => m_dynamicBlockNum > 0;
-        public Rigidbody2D FollowPlatform { get => m_followPlatform; set => SetFollower(value); }
+        public PlatformController FollowPlatform { get => m_followPlatform; set => SetFollower(value); }
         // Event
         /// <summary>Entity can't react because of stucking</summary>
-        public System.Action<EntityController> OnFrozen;
+        public System.Action<EntityBody> OnFrozen;
         /// <summary>Changed size of body</summary>
-        public System.Action<EntityController> OnResized;
+        public System.Action<EntityBody, Vector2> OnResized;
 
 
         // State Control Command
@@ -33,19 +32,20 @@ namespace Stroy.Entities {
             m_executedSetPos = true;
             if (!safe) m_executedUnsafe = true;
         }
-        public void SetSize(Vector2 size, bool safe = false) {
-            if (m_size == size) return; // Unchanged
-
-            m_body.size = size;
-            m_size = m_body.bounds.size;
-            if (!safe) m_executedUnsafe = true;
-            OnResized?.Invoke(this);
+        [ContextMenu("UpdateSize")]
+        public void UpdateSize() {
+            Vector2 curSize = m_collider.bounds.size;
+            if (m_size == curSize) return;
+            
+            m_size = curSize;
+            m_executedUnsafe = true;
+            OnResized?.Invoke(this, m_size);
         }
         [ContextMenu("Recovery")] public void Recovery() { m_executedUnsafe = true; }
         public void SetUseGravity(bool active) { m_useGravity = active; }
         public void SetGravityScale(float scale) { m_gravityScale = scale; }
         // Follow platform
-        public void SetFollower(Rigidbody2D followPlatform, bool followIsBlock = true) {
+        public void SetFollower(PlatformController followPlatform, bool followIsBlock = true) {
             m_followPlatform = followPlatform;
             m_existFollow = followPlatform != null;
             m_followIsBlock = m_existFollow && followIsBlock;
@@ -58,9 +58,9 @@ namespace Stroy.Entities {
         private const int COLLIDER_BUFFER_SIZE = 8;
         private readonly RaycastHit2D[] m_bufferHit = new RaycastHit2D[HIT_BUFFER_SIZE];
         private readonly Collider2D[] m_bufferCollider = new Collider2D[COLLIDER_BUFFER_SIZE];
-        // Component
-        [HideInInspector] private Rigidbody2D m_rigidbody;
-        [HideInInspector] private BoxCollider2D m_body;
+        // Components
+        [SerializeField] private Rigidbody2D m_rigidbody;
+        [SerializeField] private BoxCollider2D m_collider;
         // State
         [SerializeField] private Vector2 m_velocity;
         [SerializeField] private Vector2 m_size;
@@ -70,30 +70,32 @@ namespace Stroy.Entities {
         [HideInInspector] private bool m_executedSetPos;                // State flag; if flag up, current step execute SetPosition, otherwise apply velocity
         // Contact dynamics
         private int m_dynamicBlockNum;                                  // The number of dynamic blocks which entity touch or overlap
-        [SerializeField] private Rigidbody2D m_followPlatform;          // Current connected follower; it may not be block;
+        [SerializeField] private PlatformController m_followPlatform;   // Current connected follower; it may not be block;
         [HideInInspector] private bool m_existFollow;                   // Whether exist follow
         [HideInInspector] private bool m_followIsBlock;                 // Whether follow platform is block
 
 
-        // Life Cycle
+        // Activation
+        private void Reset() {
+            //// Setup rigidbody
+            m_rigidbody = GetComponent<Rigidbody2D>();
+            m_rigidbody.isKinematic = true;
+            m_rigidbody.useFullKinematicContacts = true;
+            m_rigidbody.constraints = RigidbodyConstraints2D.FreezeRotation;
+            //// Setup body
+            m_collider = GetComponent<BoxCollider2D>();
+            UpdateSize();
+        }
+        private void Awake() {
+            UpdateSize();
+        }
         private void OnEnable() {
-            // When active, always check state
-            m_executedUnsafe = true;
+            m_executedUnsafe = true;    // When active, always check state
         }
         private void OnDisable() {
             m_velocity = Vector2.zero;
             m_executedUnsafe = false;
             m_executedSetPos = false;
-        }
-        private void Awake() {
-            // Setup rigidbody
-            m_rigidbody = GetComponent<Rigidbody2D>();
-            m_rigidbody.isKinematic = true;
-            m_rigidbody.useFullKinematicContacts = true;
-            m_rigidbody.constraints = RigidbodyConstraints2D.FreezeRotation;
-            // Setup body
-            m_body = GetComponent<BoxCollider2D>();
-            SetSize(m_body.size);
         }
 
         // Physics Update
@@ -112,7 +114,7 @@ namespace Stroy.Entities {
                 Vector2 destination = m_rigidbody.position;
 
                 if (m_useGravity) {
-                    if (m_velocity.y >= -EntityConstants.FallLimit) { // Apply gravity
+                    if (m_velocity.y > -EntityConstants.FallLimit) { // Apply gravity
                         m_velocity.y -= EntityConstants.Gravity * deltaTime * m_gravityScale;
                     } else { // Limit fall speed
                         m_velocity.y = -EntityConstants.FallLimit;
@@ -121,15 +123,12 @@ namespace Stroy.Entities {
 
                 // Compute destination
                 ReactBlock(destination, out Vector2 preDist, out Vector2 postDist, deltaTime);
-                if (preDist != MoveToward(ref destination, preDist, deltaTime)) {
+                if (preDist != MoveToward(ref destination, preDist)) {
                     OnFrozen?.Invoke(this);
                 }
-                m_velocity = MoveToward(ref destination, m_velocity * deltaTime, deltaTime) / deltaTime;
-                destination += postDist;
-
-                //destination += preDist;
-                //ApplyVelocity(ref destination, deltaTime);
-                //destination += postDist;
+                
+                m_velocity = MoveToward(ref destination, m_velocity * deltaTime) / deltaTime;
+                destination += MoveToward(ref destination, postDist);
 
                 // Apply destination
                 m_rigidbody.MovePosition(destination);
@@ -144,7 +143,6 @@ namespace Stroy.Entities {
             if (collision.gameObject.layer == PlatformConstants.L_DynamicBlock) --m_dynamicBlockNum;
         }
 
-
         private bool ReactBlock(Vector2 origin, out Vector2 preDistance, out Vector2 postDistance, float deltaTime) {
             preDistance = postDistance = Vector2.zero;
 
@@ -152,7 +150,7 @@ namespace Stroy.Entities {
             if (m_dynamicBlockNum == 0 && !m_executedUnsafe && !m_existFollow) return false;
             m_executedUnsafe = false; // Off button
 
-            Vector2 penetration, pushDistance, followDistance;
+            Vector2 penetration, followDistance;
             bool pushedByFollowX = false, pushedByFollowY = false;
             // Calculate penetration and push distance
             {
@@ -162,58 +160,47 @@ namespace Stroy.Entities {
                 if (numBlock > 0) {
                     // Compute reaction values
                     Vector2 maxPenetration = Vector2.zero;  // Query result.1 : Recovery value to overlapped blocks
-                    Vector2 maxPushVelocity = Vector2.zero; // Query result.2 : Estimated penetration by dynamic blocks at next step
 
                     for (int n = 0; n != numBlock; ++n) {
                         Collider2D detectedCollider = m_bufferCollider[n];
-                        ColliderDistance2D colliderDist = m_body.Distance(detectedCollider);
+                        ColliderDistance2D colliderDist = m_collider.Distance(detectedCollider);
 
                         Vector2 newPenetration = colliderDist.distance * colliderDist.normal;
-
-                        // [Dynamic]
-                        // Query push-distance which is penetration at next step only with dynamic-block
-                        if (detectedCollider.gameObject.layer == PlatformConstants.L_DynamicBlock) {
-                            Vector2 newPushVelocity = detectedCollider.attachedRigidbody.velocity;
-                            if (Vector2.Dot(newPushVelocity, newPenetration) > 0f) { // Query only forward objects
-                                                                                     // Update push-velocity
-                                if (colliderDist.normal.x != 0f && Mathf.Abs(maxPushVelocity.x) < Mathf.Abs(newPushVelocity.x)) {
-                                    pushedByFollowX = m_followIsBlock && detectedCollider.attachedRigidbody == m_followPlatform;
-                                    maxPushVelocity.x = newPushVelocity.x;
-                                }
-                                if (colliderDist.normal.y != 0f && Mathf.Abs(maxPushVelocity.y) < Mathf.Abs(newPushVelocity.y)) {
-                                    pushedByFollowY = m_followIsBlock && detectedCollider.attachedRigidbody == m_followPlatform;
-                                    maxPushVelocity.y = newPushVelocity.y;
-                                }
-                            }
-                        }
 
                         // If gap between EC and query-target is greater than min-contact-offset, don't react
                         if (colliderDist.distance > -EntityConstants.MinContactOffset) continue;
                         // If penetrations are contrasted then freeze EC
-                        if (maxPenetration.x * newPenetration.x < 0 || maxPenetration.y * newPenetration.y < 0f) {
+                        if (maxPenetration.x * newPenetration.x < 0f || maxPenetration.y * newPenetration.y < 0f) {
                             OnFrozen?.Invoke(this);
                             return false;
                         }
                         // Update penetration
-                        if (Mathf.Abs(maxPenetration.x) < Mathf.Abs(newPenetration.x)) maxPenetration.x = newPenetration.x;
-                        if (Mathf.Abs(maxPenetration.y) < Mathf.Abs(newPenetration.y)) maxPenetration.y = newPenetration.y;
+                        if (Mathf.Abs(maxPenetration.x) < Mathf.Abs(newPenetration.x)) {
+                            maxPenetration.x = newPenetration.x;
+                            pushedByFollowX = detectedCollider.gameObject.layer == PlatformConstants.L_DynamicBlock
+                                && m_followIsBlock && detectedCollider.attachedRigidbody == m_followPlatform.Rigidbody;
+                        }
+                        if (Mathf.Abs(maxPenetration.y) < Mathf.Abs(newPenetration.y)) {
+                            maxPenetration.y = newPenetration.y;
+
+                            pushedByFollowY = detectedCollider.gameObject.layer == PlatformConstants.L_DynamicBlock
+                                && m_followIsBlock && detectedCollider.attachedRigidbody == m_followPlatform.Rigidbody;
+                        }
                     }
                     // Make gap between EC and collision-target
                     if (maxPenetration.x != 0f) maxPenetration.x -= (maxPenetration.x < 0f ? -1f : 1f) * (EntityConstants.MinContactOffset - EntityConstants.CastBuffer);
                     if (maxPenetration.y != 0f) maxPenetration.y -= (maxPenetration.y < 0f ? -1f : 1f) * (EntityConstants.MinContactOffset - EntityConstants.CastBuffer);
 
                     penetration = maxPenetration;
-                    pushDistance = maxPushVelocity * deltaTime;
                 } else {
                     penetration = Vector2.zero;
-                    pushDistance = Vector2.zero;
                 }
             }
 
             // Calcuate Follow distance
             {
                 if (m_existFollow) {
-                    followDistance = deltaTime * m_followPlatform.velocity;
+                    followDistance = m_followPlatform.Velocity * deltaTime;
                 } else {
                     followDistance = Vector2.zero;
                 }
@@ -225,66 +212,36 @@ namespace Stroy.Entities {
                 preDistance = penetration;
 
                 // Set post-distance
-                postDistance.x = GetPostDistance(m_velocity.x * deltaTime, pushDistance.x, followDistance.x, pushedByFollowX);
-                postDistance.y = GetPostDistance(m_velocity.y * deltaTime, pushDistance.y, followDistance.y, pushedByFollowY);
+                postDistance.x = GetPostDistance(penetration.x, followDistance.x, pushedByFollowX);
+                postDistance.y = GetPostDistance(penetration.y, followDistance.y, pushedByFollowY);
             }
             return true;
         }
-        private float GetPostDistance(float entityDist, float pushDist, float followDist, bool pushedByFollow) {
+        private float GetPostDistance(float pushDist, float followDist, bool pushedByFollow) {
             float postDist;
-            
-            if (pushDist * entityDist > 0f) { // Push and entity direction are same
-                float leftPush = pushDist - entityDist;
-                // Decrease push distance by entity distance
-                pushDist = leftPush * pushDist > 0f ? leftPush : 0f;
-            }
-            if (pushedByFollow || pushDist * followDist < 0f) { // Not follow or contrasted
-                postDist = pushDist;
-            } else { // Push and follow direction are same then apply the greatest value
-                if (pushDist != 0f) { 
-                    postDist = (pushDist - followDist) * followDist < 0f ? followDist : pushDist;
-                } else {
-                    postDist = followDist;
-                }
+            if (!pushedByFollow && (pushDist == 0f || (pushDist * followDist > 0f && (followDist - pushDist) * followDist > 0f))) {
+                postDist = followDist - pushDist;
+            } else {
+                postDist = 0f;
             }
             return postDist;
         }
 
-        /// <summary>Apply velocity to lastest destination and update velocity</summary>
-        private void ApplyVelocity(ref Vector2 destination, float deltaTime) {
-            if (m_velocity == Vector2.zero) return;
-
-            Vector2 befPos = destination;
-            Vector2 distance = m_velocity * deltaTime;
-            if (distance.y > 0f) {
-                if (distance.y != 0f) AddDistance(ref destination, distance.y, Vector2.up, deltaTime);
-                if (distance.x != 0f) AddDistance(ref destination, distance.x, Vector2.right, deltaTime);
-            } else {
-                if (distance.x != 0f) AddDistance(ref destination, distance.x, Vector2.right, deltaTime);
-                if (distance.y != 0f) AddDistance(ref destination, distance.y, Vector2.up, deltaTime);
-            }
-            // Update velocity
-            m_velocity = (destination - befPos) / deltaTime;
-        }
-
-        private Vector2 MoveToward(ref Vector2 destination, Vector2 distance, float deltaTime) {
+        private Vector2 MoveToward(ref Vector2 destination, Vector2 distance) {
             if (distance == Vector2.zero) return distance;
 
             Vector2 befPos = destination;
             if (distance.y > 0f) {
-                if (distance.y != 0f) AddDistance(ref destination, distance.y, Vector2.up, deltaTime);
-                if (distance.x != 0f) AddDistance(ref destination, distance.x, Vector2.right, deltaTime);
+                if (distance.y != 0f) AddDistance(ref destination, distance.y, Vector2.up);
+                if (distance.x != 0f) AddDistance(ref destination, distance.x, Vector2.right);
             } else {
-                if (distance.x != 0f) AddDistance(ref destination, distance.x, Vector2.right, deltaTime);
-                if (distance.y != 0f) AddDistance(ref destination, distance.y, Vector2.up, deltaTime);
+                if (distance.x != 0f) AddDistance(ref destination, distance.x, Vector2.right);
+                if (distance.y != 0f) AddDistance(ref destination, distance.y, Vector2.up);
             }
             return destination - befPos;
         }
 
-
-
-        /// <summary>Add distance to lastest destination</summary>
-        private void AddDistance(ref Vector2 destination, float distance, Vector2 axis, float deltaTime) {
+        private void AddDistance(ref Vector2 destination, float distance, Vector2 axis) {
             float clampedDist = (distance < 0 ? -distance : distance) + EntityConstants.MinContactOffset;
             float sign = distance < 0 ? -1f : 1f;
             // Query blocks which are obstacle for moving
@@ -292,14 +249,6 @@ namespace Stroy.Entities {
             // Clamp distance
             for (int n = 0; n != numBlock; ++n) {
                 RaycastHit2D blockHit = m_bufferHit[n];
-                // [Dynamic]
-                // Adjust blockHit.distance; follow back
-                if (blockHit.collider.gameObject.layer == PlatformConstants.L_DynamicBlock && blockHit.rigidbody != m_followPlatform) {
-                    float mainVelocity = axis.x != 0f ? blockHit.rigidbody.velocity.x : blockHit.rigidbody.velocity.y;
-
-                    // Extend hit.distance because synchronize with position of dynamic block at next step
-                    if (sign * mainVelocity > 0f) blockHit.distance += (mainVelocity < 0 ? -mainVelocity : mainVelocity) * deltaTime;
-                }
                 // Update add-distance
                 if (blockHit.distance < clampedDist) clampedDist = blockHit.distance;
             }
@@ -307,9 +256,7 @@ namespace Stroy.Entities {
             (axis.x != 0f ? ref destination.x : ref destination.y) += (clampedDist - EntityConstants.MinContactOffset) * sign;
         }
         #endregion
-
-
-#if UNITY_EDITOR
+#if UNITY_EDITOR_
         #region DEBUG
         [HideInInspector] private Vector2 editor_center;
         [HideInInspector] private Vector2 editor_size;
@@ -320,14 +267,14 @@ namespace Stroy.Entities {
 
         private void OnDrawGizmos() {
             if (Application.isEditor) {
-                if (m_body == null) m_body = GetComponent<BoxCollider2D>();
+                if (m_collider == null) m_collider = GetComponent<BoxCollider2D>();
                 if (m_rigidbody == null) m_rigidbody = GetComponent<Rigidbody2D>();
             }
 
 
             
-            editor_center = m_body.bounds.center;
-            editor_size = m_body.bounds.size;
+            editor_center = m_collider.bounds.center;
+            editor_size = m_collider.bounds.size;
             editor_tr = editor_size * new Vector2(0.5f, 0.5f);
             editor_br = editor_size * new Vector2(0.5f, -0.5f);
             editor_tl = editor_size * new Vector2(-0.5f, 0.5f);
@@ -345,7 +292,7 @@ namespace Stroy.Entities {
         }
         private void DrawEdge(float edgeOffset, Color color) {
             Gizmos.color = color;
-            Gizmos.DrawWireCube(editor_center, (Vector2)m_body.bounds.size + 2 * edgeOffset * Vector2.one);
+            Gizmos.DrawWireCube(editor_center, (Vector2)m_collider.bounds.size + 2 * edgeOffset * Vector2.one);
             if (edgeOffset > 0f) {
                 Gizmos.DrawWireSphere(editor_center + editor_tr, edgeOffset);
                 Gizmos.DrawWireSphere(editor_center + editor_br, edgeOffset);

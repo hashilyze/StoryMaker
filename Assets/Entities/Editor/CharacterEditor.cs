@@ -7,10 +7,11 @@ namespace Stroy.Entities {
     public class CharacterEditor : Editor {
         private static bool toggleGroundContact = true;
         private static bool toggleWallContact = true;
-        private static bool toggleCellContact = true;
+        private static bool toggleCeilContact = true;
 
         private SerializedProperty m_velocity;
-        private SerializedProperty m_face; 
+        private SerializedProperty m_face;
+        private SerializedProperty m_isSurfaceSnap;
 
         private SerializedProperty m_isGround;
         private SerializedProperty m_contactRadian;
@@ -22,12 +23,13 @@ namespace Stroy.Entities {
         private SerializedProperty m_wallOnLeft;
         private SerializedProperty m_wallOnRight;
 
-        private SerializedProperty m_isCell;
+        private SerializedProperty m_isCeil;
 
 
         private void OnEnable() {
             m_velocity = serializedObject.FindProperty("m_velocity");
             m_face = serializedObject.FindProperty("m_face");
+            m_isSurfaceSnap = serializedObject.FindProperty("m_isSurfaceSnap");
 
             m_isGround = serializedObject.FindProperty("m_isGround");
             m_contactRadian = serializedObject.FindProperty("m_contactRadian");
@@ -39,7 +41,7 @@ namespace Stroy.Entities {
             m_wallOnLeft = serializedObject.FindProperty("m_wallOnLeft");
             m_wallOnRight = serializedObject.FindProperty("m_wallOnRight");
 
-            m_isCell = serializedObject.FindProperty("m_isCell");
+            m_isCeil = serializedObject.FindProperty("m_isCeil");
         }
 
         public override void OnInspectorGUI() {
@@ -51,6 +53,7 @@ namespace Stroy.Entities {
             EditorGUILayout.PropertyField(m_velocity);
             EditorGUILayout.PropertyField(m_face);
             GUI.enabled = true;
+            EditorGUILayout.PropertyField(m_isSurfaceSnap);
 
             // Ground Contact
             toggleGroundContact = EditorGUILayout.BeginFoldoutHeaderGroup(toggleGroundContact, "Contact Ground");
@@ -77,11 +80,11 @@ namespace Stroy.Entities {
             }
             EditorGUILayout.EndFoldoutHeaderGroup();
 
-            // Cell Contact
-            toggleCellContact = EditorGUILayout.BeginFoldoutHeaderGroup(toggleCellContact, "Contact Cell");
-            if (toggleCellContact) {
+            // Ceil Contact
+            toggleCeilContact = EditorGUILayout.BeginFoldoutHeaderGroup(toggleCeilContact, "Contact Ceil");
+            if (toggleCeilContact) {
                 GUI.enabled = false;
-                EditorGUILayout.PropertyField(m_isCell);
+                EditorGUILayout.PropertyField(m_isCeil);
                 GUI.enabled = true;
             }
             EditorGUILayout.EndFoldoutHeaderGroup();

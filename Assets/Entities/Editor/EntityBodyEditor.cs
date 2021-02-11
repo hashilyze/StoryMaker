@@ -3,9 +3,11 @@ using UnityEditor;
 
 
 namespace Stroy.Entities {
-    [CustomEditor(typeof(EntityController))]
+    [CustomEditor(typeof(EntityBody))]
     [CanEditMultipleObjects]
-    public class EntityControllerEditor : Editor {
+    public class EntityBodyEditor : Editor {
+        private static bool m_toggleInfo = true;
+
         private SerializedProperty m_velocity;
         private SerializedProperty m_size;
         private SerializedProperty m_followPlatform;
@@ -24,15 +26,22 @@ namespace Stroy.Entities {
             //base.OnInspectorGUI();
 
             serializedObject.Update();
-            GUI.enabled = false;
-            EditorGUILayout.PropertyField(m_velocity);
-            EditorGUILayout.PropertyField(m_size);
-            EditorGUILayout.PropertyField(m_followPlatform);
-            GUI.enabled = true;
+
             EditorGUILayout.PropertyField(m_useGravity);
             if (m_useGravity.boolValue) {
                 EditorGUILayout.PropertyField(m_gravityScale);
             }
+
+            m_toggleInfo = EditorGUILayout.BeginFoldoutHeaderGroup(m_toggleInfo, "Info");
+            if (m_toggleInfo) {
+                GUI.enabled = false;
+                EditorGUILayout.PropertyField(m_velocity);
+                EditorGUILayout.PropertyField(m_size);
+                EditorGUILayout.PropertyField(m_followPlatform);
+                GUI.enabled = true;
+            }
+            EditorGUILayout.EndFoldoutHeaderGroup();
+
             serializedObject.ApplyModifiedProperties();
         }
     }

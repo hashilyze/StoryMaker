@@ -1,28 +1,26 @@
-﻿using System.Collections;
-using System.Collections.Generic;
-using UnityEngine;
-
+﻿using UnityEngine;
 
 namespace Stroy.Entities {
+    public enum EState { Idle, Travel, Follow, Combat }
+
     [RequireComponent(typeof(Character))]
     public class Npc : MonoBehaviour {
-        public MovementHandler MovementHandler { get => m_movementHandler; set => m_movementHandler = value; }
-        public CombatHandler CombatHandler { get => m_combatHandler; set => m_combatHandler = value; }
+        public Character Character => m_character;
+        public EState State { get => m_state; set => m_state = value; }
 
-        private Character m_character;
-        [SerializeField] private MovementHandler m_movementHandler;
-        [SerializeField] private CombatHandler m_combatHandler;
+        [SerializeField] private NpcData m_data;
+        [SerializeField] private Character m_character;
+        [SerializeField] private EState m_state;
 
-        private void Awake() {
+        // Activation
+        private void Reset() {
             m_character = GetComponent<Character>();
-        } 
-        private void Start() {
-            m_character.Health.OnDie += (x) => Destroy(gameObject);
         }
-        private void Update() {
-            float deltaTime = Time.deltaTime;
-            if (MovementHandler != null) MovementHandler.HandleMovement(m_character, deltaTime);
-            if (CombatHandler != null) CombatHandler.HandleCombat(deltaTime);
+        protected virtual void Update() {
+            UpdateTransaction();
+            UpdateState();
         }
+        protected virtual void UpdateTransaction() { }
+        protected virtual void UpdateState() { }
     }
 }
