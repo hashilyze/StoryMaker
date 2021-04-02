@@ -3,8 +3,7 @@
 --- !u!78 &1
 TagManager:
   serializedVersion: 2
-  tags:
-  - Enemy
+  tags: []
   layers:
   - Default
   - TransparentFX
@@ -12,14 +11,14 @@ TagManager:
   - 
   - Water
   - UI
-  - 
-  - 
-  - StaticBlock
-  - DynamicBlock
+  - Static Block
+  - Static Oneway
+  - Dynamic Block
+  - Dynamic Oneway
   - Player
   - Friend
   - Enemy
-  - 
+  - Neutral
   - 
   - 
   - 
